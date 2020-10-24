@@ -143,8 +143,14 @@ where
     fn footprint(&self) -> usize {
         let n = mem::size_of_val(self);
         n + match self {
-            Node::Z { data } => (data.capacity() * mem::size_of::<T>()),
-            Node::M { left, right, .. } => left.footprint() + right.footprint(),
+            Node::Z { data } => {
+                // println!("fp-leaf {} {}", data.len(), data.capacity());
+                data.capacity() * mem::size_of::<T>()
+            }
+            Node::M { left, right, .. } => {
+                // println!("fp-intr");
+                left.footprint() + right.footprint()
+            }
         }
     }
 
@@ -229,17 +235,23 @@ where
                 weight,
                 left,
                 right,
-            } if off < *weight => {
-                let (left, max_depth) = left.delete(off, depth);
-                (Node::newm(left, Rc::clone(right), *weight), max_depth)
-            }
-            Node::M {
-                weight,
-                left,
-                right,
             } => {
-                let (right, max_depth) = right.delete(off - *weight, depth);
-                (Node::newm(Rc::clone(left), right, *weight), max_depth)
+                //println!(
+                //    "{} {} lenl:{} lenr:{}",
+                //    weight,
+                //    off,
+                //    left.len(),
+                //    right.len()
+                //);
+                let weight = *weight;
+                if off < weight {
+                    let (left, max_depth) = left.delete(off, depth);
+                    (Node::newm(left, Rc::clone(right), weight - 1), max_depth)
+                } else {
+                    let off = off - weight;
+                    let (right, max_depth) = right.delete(off, depth);
+                    (Node::newm(Rc::clone(left), right, weight), max_depth)
+                }
             }
             Node::Z { data } => {
                 let mut data = data.to_vec();
@@ -250,7 +262,6 @@ where
     }
 
     fn split_insert(data: &[T], off: usize, val: T) -> Rc<Node<T>> {
-        let n = leaf_size::<T>(LEAF_CAP);
         let (mut ld, mut rd) = {
             let m = data.len() / 2;
             match data.len() {
