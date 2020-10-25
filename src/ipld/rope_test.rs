@@ -86,14 +86,38 @@ fn test_rope_prepend() {
         let mut rr = Rope::new();
         let mut refv = vec![];
 
-        for _ in 0..*n {
+        for _i in 0..*n {
             let val = rng.gen::<u64>();
+            // println!("off:{} val:{}", n - _i - 1, val);
             refv.insert(0, val);
             let r1 = rr.insert(0, val).unwrap();
             assert_eq!(rr.len() + 1, r1.len());
             rr = r1
         }
-        println!("ops:{}, n:{} footprint:{}", n, rr.len(), rr.footprint());
+
+        let data = Rope::collect_zs(&rr.root)
+            .into_iter()
+            .map(|n| {
+                if let Node::Z { data } = n.as_ref() {
+                    data.to_vec()
+                } else {
+                    panic!()
+                }
+            })
+            .flatten()
+            .collect::<Vec<u64>>();
+
+        assert_eq!(data.len(), refv.len());
+        assert_eq!(data, refv);
+
+        let ratio = mem_ratio(8, rr.footprint(), rr.len());
+        println!(
+            "ops:{}, n:{} footprint:{} mem_ratio:{}",
+            n,
+            rr.len(),
+            rr.footprint(),
+            ratio
+        );
         validate(&rr, &refv);
     }
 }
@@ -269,10 +293,10 @@ fn bench_rope_footprint_u64_delete_skew(_: &mut Bencher) {
 
 fn validate<T: fmt::Debug + Clone + Eq + PartialEq>(r: &Rope<T>, refv: &[T]) {
     assert_eq!(refv.len(), r.len());
-    assert_eq!(r.len(), r.calculate_len());
+    assert_eq!(r.len(), r.root.len());
 
     for (off, val) in refv.iter().enumerate() {
-        assert_eq!(r.get(off).unwrap(), val);
+        assert_eq!(r.get(off).unwrap(), val, "off-{}", off);
     }
 
     assert!(r.get(r.len()).is_err());

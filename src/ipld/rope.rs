@@ -13,6 +13,8 @@
 // to rope structure, as a tuple of (weight, left, right) where weight is
 // the sum of all items present in the leaf-nodes under the left-branch.
 
+use log::debug;
+
 use std::{borrow::Borrow, mem, rc::Rc};
 
 use crate::{Error, Result};
@@ -25,6 +27,7 @@ where
 {
     len: usize,
     root: Rc<Node<T>>,
+    auto_rebalance: bool,
 }
 
 impl<T> Rope<T>
@@ -38,9 +41,20 @@ where
         Rope {
             len: 0,
             root: Rc::new(root),
+            auto_rebalance: true,
         }
     }
 
+    pub fn set_auto_rebalance(&mut self, rebalance: bool) -> &mut Self {
+        self.auto_rebalance = rebalance;
+        self
+    }
+}
+
+impl<T> Rope<T>
+where
+    T: Sized + Clone,
+{
     pub fn len(&self) -> usize {
         self.len
     }
@@ -66,10 +80,12 @@ where
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        let root = self.try_rebalance(root, Some(max_depth))?;
-        let len = self.len + 1;
-
-        Ok(Rope { root, len })
+        let root = self.auto_rebalance(root, Some(max_depth), false, self.len + 1)?;
+        Ok(Rope {
+            root,
+            len: self.len + 1,
+            auto_rebalance: self.auto_rebalance,
+        })
     }
 
     pub fn set(&self, off: usize, value: T) -> Result<Rope<T>> {
@@ -79,10 +95,12 @@ where
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        let root = self.try_rebalance(root, Some(max_depth))?;
-        let len = self.len;
-
-        Ok(Rope { root, len })
+        let root = self.auto_rebalance(root, Some(max_depth), false, self.len)?;
+        Ok(Rope {
+            root,
+            len: self.len,
+            auto_rebalance: self.auto_rebalance,
+        })
     }
 
     pub fn delete(&self, off: usize) -> Result<Rope<T>> {
@@ -92,39 +110,56 @@ where
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        let root = self.try_rebalance(root, Some(max_depth))?;
-        let len = self.len - 1;
-
-        Ok(Rope { root, len })
-    }
-
-    pub fn calculate_len(&self) -> usize {
-        self.root.len()
+        let root = self.auto_rebalance(root, Some(max_depth), false, self.len - 1)?;
+        Ok(Rope {
+            root,
+            len: self.len - 1,
+            auto_rebalance: self.auto_rebalance,
+        })
     }
 
     pub fn rebalance(&self) -> Result<Rope<T>> {
-        let root = self.try_rebalance(Rc::clone(&self.root), None)?;
+        let root = self.auto_rebalance(Rc::clone(&self.root), None, true, self.len)?;
         let val = Rope {
             len: self.len,
             root,
+            auto_rebalance: self.auto_rebalance,
         };
         Ok(val)
     }
 
-    fn try_rebalance(&self, root: Rc<Node<T>>, max_depth: Option<usize>) -> Result<Rc<Node<T>>> {
+    fn auto_rebalance(
+        &self,
+        root: Rc<Node<T>>,
+        max_depth: Option<usize>,
+        force: bool,
+        len: usize,
+    ) -> Result<Rc<Node<T>>> {
         match max_depth {
-            Some(d) if can_rebalance(d, self.len) == false => Ok(root),
-            _ => {
-                println!("try_rebalance max_depth:{:?}", max_depth);
+            Some(d) if can_rebalance::<T>(d, self.len) == false => Ok(root),
+            _ if force || self.auto_rebalance => {
+                let start = std::time::Instant::now();
                 let mut zs = Self::collect_zs(&root);
+                zs.reverse();
+
+                debug!(target: "rope", "rebalanced {} leaf nodes, max_depth:{:?}", zs.len(), max_depth);
+                println!(
+                    "rebalanced {} leaf nodes, max_depth:{:?}",
+                    zs.len(),
+                    max_depth
+                );
+
                 let depth = ((self.len as f64).log2() as usize) + 1;
                 let (nroot, n) = Node::build_bottoms_up(depth, &mut zs);
-                if n != self.len {
-                    err_at!(Fatal, msg: "rebalance length failed {} != {}", n, self.len)
+
+                if n != len {
+                    err_at!(Fatal, msg: "rebalance len fail {} != {}", n, len)
                 } else {
+                    println!("took: {:?}", start.elapsed());
                     Ok(nroot)
                 }
             }
+            _ => Ok(root),
         }
     }
 
@@ -371,10 +406,11 @@ fn leaf_size<T>(cap: usize) -> usize {
     (cap / s) + 1
 }
 
-fn can_rebalance(max_depth: usize, len: usize) -> bool {
+fn can_rebalance<T>(max_depth: usize, len: usize) -> bool {
+    let n_leafs = leaf_size::<T>(LEAF_CAP);
     match max_depth {
         n if n < 30 => false,
-        _ if (max_depth as f64) > ((len as f64).log2() * 3_f64) => true,
+        _ if (max_depth as f64) > ((n_leafs as f64).log2() * 3_f64) => true,
         _ => false,
     }
 }
