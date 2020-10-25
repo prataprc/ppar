@@ -323,7 +323,7 @@ where
                 }
             }
             Node::Z { data } => {
-                let mut ndata = data[off..].to_vec();
+                let mut ndata = data[..off].to_vec();
                 ndata.extend_from_slice(&data[(off + 1)..]);
                 Rc::new(Node::Z { data: ndata })
             }
