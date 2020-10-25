@@ -13,7 +13,7 @@
 // to rope structure, as a tuple of (weight, left, right) where weight is
 // the sum of all items present in the leaf-nodes under the left-branch.
 
-use std::{mem, rc::Rc};
+use std::{borrow::Borrow, mem, rc::Rc};
 
 use crate::{Error, Result};
 
@@ -66,7 +66,7 @@ where
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        let root = Self::try_rebalance(root, max_depth);
+        let root = self.try_rebalance(root, Some(max_depth))?;
         let len = self.len + 1;
 
         Ok(Rope { root, len })
@@ -79,7 +79,7 @@ where
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        let root = Self::try_rebalance(root, max_depth);
+        let root = self.try_rebalance(root, Some(max_depth))?;
         let len = self.len;
 
         Ok(Rope { root, len })
@@ -92,7 +92,7 @@ where
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        let root = Self::try_rebalance(root, max_depth);
+        let root = self.try_rebalance(root, Some(max_depth))?;
         let len = self.len - 1;
 
         Ok(Rope { root, len })
@@ -102,8 +102,52 @@ where
         self.root.len()
     }
 
-    fn try_rebalance(root: Rc<Node<T>>, _max_depth: usize) -> Rc<Node<T>> {
-        root // TODO
+    pub fn rebalance(&self) -> Result<Rope<T>> {
+        let root = self.try_rebalance(Rc::clone(&self.root), None)?;
+        let val = Rope {
+            len: self.len,
+            root,
+        };
+        Ok(val)
+    }
+
+    fn try_rebalance(&self, root: Rc<Node<T>>, max_depth: Option<usize>) -> Result<Rc<Node<T>>> {
+        match max_depth {
+            Some(d) if can_rebalance(d, self.len) == false => Ok(root),
+            _ => {
+                println!("try_rebalance max_depth:{:?}", max_depth);
+                let mut zs = Self::collect_zs(&root);
+                let depth = ((self.len as f64).log2() as usize) + 1;
+                let (nroot, n) = Node::build_bottoms_up(depth, &mut zs);
+                if n != self.len {
+                    err_at!(Fatal, msg: "rebalance length failed {} != {}", n, self.len)
+                } else {
+                    Ok(nroot)
+                }
+            }
+        }
+    }
+
+    fn collect_zs(root: &Rc<Node<T>>) -> Vec<Rc<Node<T>>> {
+        let mut stack = vec![];
+        let mut acc = vec![];
+        let mut node = root;
+        loop {
+            match node.borrow() {
+                Node::Z { .. } if stack.len() == 0 => {
+                    acc.push(Rc::clone(&node));
+                    break acc;
+                }
+                Node::Z { .. } => {
+                    acc.push(Rc::clone(&node));
+                    node = stack.pop().unwrap();
+                }
+                Node::M { left, right, .. } => {
+                    stack.push(right);
+                    node = left;
+                }
+            }
+        }
     }
 }
 
@@ -288,11 +332,51 @@ where
             right,
         })
     }
+
+    fn build_bottoms_up(depth: usize, zs: &mut Vec<Rc<Node<T>>>) -> (Rc<Node<T>>, usize) {
+        match (depth, zs.len()) {
+            (1, _) => match zs.pop() {
+                Some(l) => {
+                    let weight = l.len();
+                    let (n, left, right) = match zs.pop() {
+                        Some(r) => (weight + r.len(), l, r),
+                        None => (weight, l, Rc::new(Node::Z { data: vec![] })),
+                    };
+                    let node = Node::M {
+                        weight,
+                        left: left,
+                        right: right,
+                    };
+                    (Rc::new(node), n)
+                }
+                None => (Rc::new(Node::Z { data: vec![] }), 0),
+            },
+            (_, 0) => (Rc::new(Node::Z { data: vec![] }), 0),
+            (_, _) => {
+                let (left, weight) = Self::build_bottoms_up(depth - 1, zs);
+                let (right, m) = Self::build_bottoms_up(depth - 1, zs);
+                let node = Node::M {
+                    weight,
+                    left,
+                    right,
+                };
+                (Rc::new(node), weight + m)
+            }
+        }
+    }
 }
 
 fn leaf_size<T>(cap: usize) -> usize {
     let s = mem::size_of::<T>();
     (cap / s) + 1
+}
+
+fn can_rebalance(max_depth: usize, len: usize) -> bool {
+    match max_depth {
+        n if n < 30 => false,
+        _ if (max_depth as f64) > ((len as f64).log2() * 3_f64) => true,
+        _ => false,
+    }
 }
 
 #[cfg(test)]

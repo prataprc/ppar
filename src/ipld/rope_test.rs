@@ -25,7 +25,7 @@ fn test_rope_crud() {
         let mut refv = vec![];
 
         for _ in 0..*n {
-            rr = match rng.gen::<u8>() % 2 {
+            rr = match rng.gen::<u8>() % 4 {
                 // get
                 0 if rr.len() > 0 => {
                     let off = rng.gen::<usize>() % rr.len();
@@ -67,6 +67,31 @@ fn test_rope_crud() {
                 }
                 _ => unreachable!(),
             };
+        }
+        println!("ops:{}, n:{} footprint:{}", n, rr.len(), rr.footprint());
+        validate(&rr, &refv);
+    }
+}
+
+#[test]
+fn test_rope_prepend() {
+    let seed: u128 = random();
+    // let seed: u128 = 89704735013013664095413923566273445973;
+    println!("test_rope_prepend seed {}", seed);
+    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+
+    let ops = [10_000, 1000_000];
+    for n in ops.iter() {
+        // println!("n .. {}", n);
+        let mut rr = Rope::new();
+        let mut refv = vec![];
+
+        for _ in 0..*n {
+            let val = rng.gen::<u64>();
+            refv.insert(0, val);
+            let r1 = rr.insert(0, val).unwrap();
+            assert_eq!(rr.len() + 1, r1.len());
+            rr = r1
         }
         println!("ops:{}, n:{} footprint:{}", n, rr.len(), rr.footprint());
         validate(&rr, &refv);
