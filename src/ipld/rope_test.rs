@@ -84,31 +84,19 @@ fn test_rope_prepend() {
     for n in ops.iter() {
         // println!("n .. {}", n);
         let mut rr = Rope::new();
-        let mut refv = vec![];
+        let mut refv: Vec<u64> = vec![];
 
         for _i in 0..*n {
             let val = rng.gen::<u64>();
             // println!("off:{} val:{}", n - _i - 1, val);
-            refv.insert(0, val);
+            refv.push(val);
             let r1 = rr.insert(0, val).unwrap();
             assert_eq!(rr.len() + 1, r1.len());
             rr = r1
         }
 
-        let data = Rope::collect_zs(&rr.root)
-            .into_iter()
-            .map(|n| {
-                if let Node::Z { data } = n.as_ref() {
-                    data.to_vec()
-                } else {
-                    panic!()
-                }
-            })
-            .flatten()
-            .collect::<Vec<u64>>();
-
-        assert_eq!(data.len(), refv.len());
-        assert_eq!(data, refv);
+        refv.reverse();
+        validate_root(&rr.root, &refv);
 
         let ratio = mem_ratio(8, rr.footprint(), rr.len());
         println!(
@@ -291,7 +279,10 @@ fn bench_rope_footprint_u64_delete_skew(_: &mut Bencher) {
     );
 }
 
-fn validate<T: fmt::Debug + Clone + Eq + PartialEq>(r: &Rope<T>, refv: &[T]) {
+fn validate<T>(r: &Rope<T>, refv: &[T])
+where
+    T: fmt::Debug + Clone + Eq + PartialEq,
+{
     assert_eq!(refv.len(), r.len());
     assert_eq!(r.len(), r.root.len());
 
@@ -300,6 +291,26 @@ fn validate<T: fmt::Debug + Clone + Eq + PartialEq>(r: &Rope<T>, refv: &[T]) {
     }
 
     assert!(r.get(r.len()).is_err());
+}
+
+fn validate_root<T>(root: &Rc<Node<T>>, refv: &[T])
+where
+    T: fmt::Debug + Clone + Eq + PartialEq,
+{
+    let data = Rope::collect_zs(root)
+        .into_iter()
+        .map(|n| {
+            if let Node::Z { data } = n.as_ref() {
+                data.to_vec()
+            } else {
+                panic!()
+            }
+        })
+        .flatten()
+        .collect::<Vec<T>>();
+
+    assert_eq!(data.len(), refv.len());
+    assert_eq!(data, refv);
 }
 
 fn mem_ratio(size: usize, mem: usize, n: usize) -> f64 {
