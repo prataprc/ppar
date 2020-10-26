@@ -297,7 +297,7 @@ fn validate_root<T>(root: &Rc<Node<T>>, refv: &[T])
 where
     T: fmt::Debug + Clone + Eq + PartialEq,
 {
-    let data = Rope::collect_zs(root)
+    let data = Node::collect_zs(root)
         .into_iter()
         .map(|n| {
             if let Node::Z { data } = n.as_ref() {
