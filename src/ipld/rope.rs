@@ -13,6 +13,11 @@
 // to rope structure, as a tuple of (weight, left, right) where weight is
 // the sum of all items present in the leaf-nodes under the left-branch.
 
+// Alternates libraries:
+//
+// im: https://github.com/bodil/im-rs
+// rpds: https://github.com/orium/rpds
+
 #[allow(unused_imports)]
 use log::debug;
 
