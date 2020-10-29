@@ -1,4 +1,7 @@
-use im;
+#[cfg(not(feature = "im-rc"))]
+use im::Vector as ImVector;
+#[cfg(feature = "im-rc")]
+use im_rc::Vector as ImVector;
 use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
 use structopt::StructOpt;
 
@@ -28,8 +31,11 @@ pub struct Opt {
     #[structopt(long = "ops", default_value = "1000000")] // default 1M
     ops: usize,
 
-    #[structopt(long = "leaf-size")] // default 1M
+    #[structopt(long = "leaf-size")]
     leaf_size: Option<usize>,
+
+    #[structopt(long = "im-vector")]
+    im_vector: bool,
 }
 
 fn main() {
@@ -48,10 +54,12 @@ fn main() {
     arr = ppar_ops(arr, &mut opts, &mut rng);
     ppar_delete_skew(arr, &mut rng);
 
-    println!("\nim::Vector performance characterization");
-    println!("---------------------------------------\n");
-    let arr = im_load(&mut opts, &mut rng);
-    im_ops(arr, &mut opts, &mut rng);
+    if opts.im_vector {
+        println!("\nim::Vector performance characterization");
+        println!("---------------------------------------\n");
+        let arr = im_load(&mut opts, &mut rng);
+        im_ops(arr, &mut opts, &mut rng);
+    }
 }
 
 fn mem_ratio(mem: usize, n: usize) -> f64 {
@@ -165,12 +173,12 @@ fn ppar_delete_skew(mut arr: ppar::Vector<u64>, rng: &mut SmallRng) -> ppar::Vec
     arr
 }
 
-fn im_load(opts: &mut Opt, rng: &mut SmallRng) -> im::Vector<u64> {
+fn im_load(opts: &mut Opt, rng: &mut SmallRng) -> ImVector<u64> {
     let vals: Vec<u64> = (0..opts.load).map(|_| rng.gen()).collect();
 
     let arr = {
         let start = time::Instant::now();
-        let mut arr: im::Vector<u64> = im::Vector::from(&vals);
+        let arr: ImVector<u64> = ImVector::from(&vals);
         pp!(
             "append-load({} items)",
             arr.len()
@@ -183,7 +191,7 @@ fn im_load(opts: &mut Opt, rng: &mut SmallRng) -> im::Vector<u64> {
     arr
 }
 
-fn im_ops(mut arr: im::Vector<u64>, opts: &Opt, rng: &mut SmallRng) -> im::Vector<u64> {
+fn im_ops(mut arr: ImVector<u64>, opts: &Opt, rng: &mut SmallRng) -> ImVector<u64> {
     let vals: Vec<u64> = (0..opts.ops).map(|_| rng.gen()).collect();
     let offs: Vec<usize> = (0..opts.ops)
         .map(|_| rng.gen::<usize>() % arr.len())

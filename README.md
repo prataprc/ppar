@@ -14,6 +14,7 @@ the sum of all items present in the leaf-nodes under the left-branch.
 - [x] CRUD operation, get(), set(), delete(), insert(), all are persistent.
 - [x] Convert from Vec<T> to ppar::Vector<T>.
 - [ ] Convert from ppar::Vector<T> to Vec<T>.
+- [x] Thread safe operations.
 - [ ] Iteration over collection, item-wise, chunk-wise, reverse.
 - [ ] Deduplication.
 - [ ] Membership.
@@ -31,28 +32,35 @@ the sum of all items present in the leaf-nodes under the left-branch.
   - [ ] Hash
   - [ ] Index, IndexMut
   - [ ] Write
-- [ ] Thread safe operations.
+- [ ] Parallel iteration with [rayon](https://crates.io/crates/rayon).
+- [ ] Arbitrary implementation from [quickcheck](https://crates.io/crates/quickcheck).
 
 **Benchmark**:
 
-On a 2010 8GB core2-duo machine ...
+On a 2010 8GB core2-duo machine, thread safe:
 
 ```bash
-# Random insertion of u64 values.
-test bench_insert_rand ... bench:       7,444 ns/iter (+/- 3,092)
-# Sequential append of u64 values.
-test bench_append      ... bench:       2,236 ns/iter (+/- 429)
-# Random delete, followed by insert into same position, for a 100K collection.
-test bench_delete_100K ... bench:       3,776 ns/iter (+/- 510)
-# Random get over a 100K collection.
-test bench_get_100K    ... bench:          63 ns/iter (+/- 0)
-# Sequential prepend for u64 values.
-test bench_prepend     ... bench:       2,924 ns/iter (+/- 427)
-# Random set over a 100K collection.
-test bench_set_100K    ... bench:       1,330 ns/iter (+/- 165)
+test bench_append      ... bench:       2,892 ns/iter (+/- 591)
+test bench_delete_100K ... bench:       4,557 ns/iter (+/- 496)
+test bench_get_100K    ... bench:          65 ns/iter (+/- 0)
+test bench_insert_rand ... bench:       8,212 ns/iter (+/- 3,156)
+test bench_prepend     ... bench:       3,631 ns/iter (+/- 479)
+test bench_set_100K    ... bench:       1,670 ns/iter (+/- 149)
 ```
 
-Benchmark comparison with [im::Vector](https://docs.rs/im/15.0.0/im/struct.Vector.html)
+
+On a 2010 8GB core2-duo machine, single threaded:
+
+```bash
+test bench_append      ... bench:       2,214 ns/iter (+/- 304)
+test bench_delete_100K ... bench:       3,876 ns/iter (+/- 499)
+test bench_get_100K    ... bench:          64 ns/iter (+/- 0)
+test bench_insert_rand ... bench:       6,105 ns/iter (+/- 2,989)
+test bench_prepend     ... bench:       2,833 ns/iter (+/- 470)
+test bench_set_100K    ... bench:       1,307 ns/iter (+/- 83)
+```
+
+Via performance application,
 
 ```text
 ppar::Vector performance characterization
@@ -64,21 +72,7 @@ set(1000000 ops)               : 5.489µs
 delete-insert(1000000 ops)     : 10.313µs
 overhead                       : "37.19%"
 overhead after 90% delete      : "33.30%"
-
-im::Vector performance characterization
----------------------------------------
-
-append-load(1000000 items)     : 43.340755ms
-get(1000000 ops)               : 147ns
-update(1000000 ops)            : 9.385µs
 ```
-
-When compared to im::Vector,
-
-* ppar::Vector supports persistent insert() and delete() operations.
-* Around 4x faster when converting from Vec<T>.
-* Random index operation is around 15% faster.
-* Persistent update operation is around 2x faster.
 
 **Alternate libraries**:
 

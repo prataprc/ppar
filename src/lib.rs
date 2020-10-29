@@ -7,6 +7,13 @@
 //! to rope structure, as a tuple of (weight, left, right) where weight is
 //! the sum of all items present in the leaf-nodes under the left-branch.
 //!
+//! Thread Safety
+//! =============
+//!
+//! By default `Vector<T>` is thread safe through `Arc`. To get better
+//! performance over thread-safety, compile with `ppar-rc` feature, which uses
+//! `Rc` instead of `Arc`.
+//!
 //! **Alternate libraries**:
 //!
 //! * _[im](https://github.com/bodil/im-rs)_

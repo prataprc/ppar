@@ -15,13 +15,23 @@
 #[allow(unused_imports)]
 use log::debug;
 
-use std::{borrow::Borrow, mem, rc::Rc};
+#[cfg(feature = "ppar-rc")]
+use std::rc::Rc;
+#[cfg(not(feature = "ppar-rc"))]
+use std::sync::Arc;
+use std::{borrow::Borrow, mem};
 
 use crate::{Error, Result};
 
 /// Leaf not shall not exceed this default size, refer
 /// [Vector::set_leaf_size] for optimal configuration.
 pub const LEAF_CAP: usize = 10 * 1024; // in bytes.
+
+#[cfg(feature = "ppar-rc")]
+type NodeRef<T> = Rc<Node<T>>;
+
+#[cfg(not(feature = "ppar-rc"))]
+type NodeRef<T> = Arc<Node<T>>;
 
 /// Persistent array, that can also be used as mutable vector.
 ///
@@ -31,18 +41,18 @@ where
     T: Sized + Clone,
 {
     len: usize,
-    root: Rc<Node<T>>,
+    root: NodeRef<T>,
     auto_rebalance: bool,
     leaf_cap: usize,
 }
 
-impl<T> Clone for Vector<T> {
+impl<T: Clone> Clone for Vector<T> {
     fn clone(&self) -> Self {
         Vector {
             len: self.len,
-            root: Rc::clone(self.root),
+            root: NodeRef::clone(&self.root),
             auto_rebalance: self.auto_rebalance,
-            leaf_cap: self.auto_rebalance,
+            leaf_cap: self.leaf_cap,
         }
     }
 }
@@ -57,7 +67,7 @@ where
         };
         Vector {
             len: 0,
-            root: Rc::new(root),
+            root: NodeRef::new(root),
             auto_rebalance: true,
             leaf_cap: LEAF_CAP,
         }
@@ -67,9 +77,9 @@ where
         let n = leaf_size::<T>(leaf_node_size.unwrap_or(LEAF_CAP));
 
         let (root, _) = {
-            let zs: Vec<Rc<Node<T>>> = slice
+            let zs: Vec<NodeRef<T>> = slice
                 .chunks(n)
-                .map(|x| Rc::new(Node::Z { data: x.to_vec() }))
+                .map(|x| NodeRef::new(Node::Z { data: x.to_vec() }))
                 .collect();
             let depth = ((zs.len() as f64).log2() as usize) + 1;
             let mut iter = zs.into_iter();
@@ -84,11 +94,20 @@ where
         }
     }
 
+    /// Size of the leaf node can be adjusted. Note that all leaf nodes
+    /// shall be of equal size set by `leaf_size`. Setting a large value will
+    /// make the tree shallow giving better read performance, at the expense
+    /// of write performance. Leaf size must be specified in bytes.
     pub fn set_leaf_size(&mut self, leaf_size: usize) -> &mut Self {
         self.leaf_cap = leaf_size;
         self
     }
 
+    /// Auto rebalance is enabled by default. This has some penalty for write
+    /// heavy situations, since every write op will try to rebalance the tree
+    /// if goes too much off-balance. Application can disable auto-rebalance
+    /// to get maximum efficiency, and call [Self::rebalance] method as and
+    /// when required.
     pub fn set_auto_rebalance(&mut self, rebalance: bool) -> &mut Self {
         self.auto_rebalance = rebalance;
         self
@@ -165,7 +184,8 @@ where
 
     pub fn rebalance(&self) -> Result<Self> {
         let rn = Rebalance::new(self);
-        let (root, _) = Node::auto_rebalance(Rc::clone(&self.root), 0, true, &rn)?;
+        let root = NodeRef::clone(&self.root);
+        let (root, _) = Node::auto_rebalance(root, 0, true, &rn)?;
         let val = Vector {
             len: self.len,
             root,
@@ -182,8 +202,8 @@ where
 {
     M {
         weight: usize,
-        left: Rc<Node<T>>,
-        right: Rc<Node<T>>,
+        left: NodeRef<T>,
+        right: NodeRef<T>,
     },
     Z {
         data: Vec<T>,
@@ -194,8 +214,8 @@ impl<T> Node<T>
 where
     T: Sized + Clone,
 {
-    fn newm(left: Rc<Node<T>>, right: Rc<Node<T>>, weight: usize) -> Rc<Node<T>> {
-        Rc::new(Node::M {
+    fn newm(left: NodeRef<T>, right: NodeRef<T>, weight: usize) -> NodeRef<T> {
+        NodeRef::new(Node::M {
             left,
             right,
             weight,
@@ -232,7 +252,7 @@ where
     }
 
     // return (value, max_depth)
-    fn insert(&self, off: usize, val: T, rn: &Rebalance) -> Result<(Rc<Node<T>>, usize)> {
+    fn insert(&self, off: usize, val: T, rn: &Rebalance) -> Result<(NodeRef<T>, usize)> {
         let (node, depth) = match self {
             Node::M {
                 weight,
@@ -242,11 +262,11 @@ where
                 let weight = *weight;
                 let (weight, left, right, depth) = if off < weight {
                     let (left, depth) = left.insert(off, val, rn)?;
-                    (weight + 1, left, Rc::clone(right), depth)
+                    (weight + 1, left, NodeRef::clone(right), depth)
                 } else {
                     let off = off - weight;
                     let (right, depth) = right.insert(off, val, rn)?;
-                    (weight, Rc::clone(left), right, depth)
+                    (weight, NodeRef::clone(left), right, depth)
                 };
                 (Node::newm(left, right, weight), depth + 1)
             }
@@ -254,7 +274,7 @@ where
                 let mut ndata = data[..off].to_vec();
                 ndata.push(val);
                 ndata.extend_from_slice(&data[off..]);
-                (Rc::new(Node::Z { data: ndata }), 1)
+                (NodeRef::new(Node::Z { data: ndata }), 1)
             }
             Node::Z { data } => (Self::split_insert(data, off, val), 2),
         };
@@ -264,7 +284,7 @@ where
         Ok((node, depth))
     }
 
-    fn set(&self, off: usize, value: T) -> Rc<Node<T>> {
+    fn set(&self, off: usize, value: T) -> NodeRef<T> {
         match self {
             Node::M {
                 weight,
@@ -272,7 +292,7 @@ where
                 right,
             } if off < *weight => {
                 let left = left.set(off, value);
-                Node::newm(left, Rc::clone(right), *weight)
+                Node::newm(left, NodeRef::clone(right), *weight)
             }
             Node::M {
                 weight,
@@ -280,17 +300,17 @@ where
                 right,
             } => {
                 let right = right.set(off - *weight, value);
-                Node::newm(Rc::clone(left), right, *weight)
+                Node::newm(NodeRef::clone(left), right, *weight)
             }
             Node::Z { data } => {
                 let mut data = data.to_vec();
                 data[off] = value;
-                Rc::new(Node::Z { data })
+                NodeRef::new(Node::Z { data })
             }
         }
     }
 
-    fn delete(&self, off: usize) -> Rc<Node<T>> {
+    fn delete(&self, off: usize) -> NodeRef<T> {
         match self {
             Node::M {
                 weight,
@@ -307,21 +327,21 @@ where
                 let weight = *weight;
                 if off < weight {
                     let left = left.delete(off);
-                    Node::newm(left, Rc::clone(right), weight - 1)
+                    Node::newm(left, NodeRef::clone(right), weight - 1)
                 } else {
                     let right = right.delete(off - weight);
-                    Node::newm(Rc::clone(left), right, weight)
+                    Node::newm(NodeRef::clone(left), right, weight)
                 }
             }
             Node::Z { data } => {
                 let mut ndata = data[..off].to_vec();
                 ndata.extend_from_slice(&data[(off + 1)..]);
-                Rc::new(Node::Z { data: ndata })
+                NodeRef::new(Node::Z { data: ndata })
             }
         }
     }
 
-    fn split_insert(data: &[T], off: usize, val: T) -> Rc<Node<T>> {
+    fn split_insert(data: &[T], off: usize, val: T) -> NodeRef<T> {
         let (mut ld, mut rd) = {
             let m = data.len() / 2;
             match data.len() {
@@ -340,9 +360,9 @@ where
                 w
             }
         };
-        let left = Rc::new(Node::Z { data: ld });
-        let right = Rc::new(Node::Z { data: rd });
-        Rc::new(Node::M {
+        let left = NodeRef::new(Node::Z { data: ld });
+        let right = NodeRef::new(Node::Z { data: rd });
+        NodeRef::new(Node::M {
             weight,
             left,
             right,
@@ -350,11 +370,11 @@ where
     }
 
     fn auto_rebalance(
-        node: Rc<Node<T>>,
+        node: NodeRef<T>,
         depth: usize,
         force: bool,
         rn: &Rebalance,
-    ) -> Result<(Rc<Node<T>>, usize)> {
+    ) -> Result<(NodeRef<T>, usize)> {
         let doit = {
             let b = force;
             b || (rn.auto_rebalance == true) && rn.can_rebalance(depth)
@@ -384,17 +404,17 @@ where
         }
     }
 
-    fn collect_zs(root: &Rc<Node<T>>) -> Vec<Rc<Node<T>>> {
+    fn collect_zs(root: &NodeRef<T>) -> Vec<NodeRef<T>> {
         let (mut stack, mut acc) = (vec![], vec![]);
         let mut node = root;
         loop {
             match node.borrow() {
                 Node::Z { .. } if stack.len() == 0 => {
-                    acc.push(Rc::clone(&node));
+                    acc.push(NodeRef::clone(&node));
                     break acc;
                 }
                 Node::Z { .. } => {
-                    acc.push(Rc::clone(&node));
+                    acc.push(NodeRef::clone(&node));
                     node = stack.pop().unwrap();
                 }
                 Node::M { left, right, .. } => {
@@ -407,25 +427,25 @@ where
 
     fn build_bottoms_up(
         depth: usize,
-        item: Option<Rc<Node<T>>>,
-        ziter: &mut impl Iterator<Item = Rc<Node<T>>>,
-    ) -> (Rc<Node<T>>, usize) {
+        item: Option<NodeRef<T>>,
+        ziter: &mut impl Iterator<Item = NodeRef<T>>,
+    ) -> (NodeRef<T>, usize) {
         match (depth, item) {
             (1, Some(l)) => {
                 let weight = l.len();
                 let (n, left, right) = match ziter.next() {
                     Some(r) => (l.len() + r.len(), l, r),
-                    None => (l.len(), l, Rc::new(Node::Z { data: vec![] })),
+                    None => (l.len(), l, NodeRef::new(Node::Z { data: vec![] })),
                 };
                 let node = Node::M {
                     weight,
                     left,
                     right,
                 };
-                (Rc::new(node), n)
+                (NodeRef::new(node), n)
             }
-            (1, None) => (Rc::new(Node::Z { data: vec![] }), 0),
-            (_, None) => (Rc::new(Node::Z { data: vec![] }), 0),
+            (1, None) => (NodeRef::new(Node::Z { data: vec![] }), 0),
+            (_, None) => (NodeRef::new(Node::Z { data: vec![] }), 0),
             (_, item) => {
                 let (left, weight) = Self::build_bottoms_up(depth - 1, item, ziter);
                 let (right, m) = Self::build_bottoms_up(depth - 1, ziter.next(), ziter);
@@ -434,7 +454,7 @@ where
                     left,
                     right,
                 };
-                (Rc::new(node), weight + m)
+                (NodeRef::new(node), weight + m)
             }
         }
     }

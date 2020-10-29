@@ -162,7 +162,7 @@ where
     assert!(r.get(r.len()).is_err());
 }
 
-fn validate_root<T>(root: &Rc<Node<T>>, refv: &[T])
+fn validate_root<T>(root: &NodeRef<T>, refv: &[T])
 where
     T: fmt::Debug + Clone + Eq + PartialEq,
 {
