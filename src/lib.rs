@@ -2,7 +2,9 @@ use std::{error, fmt, result};
 
 #[macro_use]
 pub mod util;
-pub mod rope;
+pub mod ppar;
+
+pub use ppar::Vector;
 
 /// Type alias for Result return type, used by this package.
 pub type Result<T> = result::Result<T, Error>;

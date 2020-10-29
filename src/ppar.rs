@@ -1,22 +1,16 @@
-//! Module implement a variant of rope data structure.
+//! Module implement persistent array using a variant of rope data structure.
 //!
-//! Expected to be used as list type in data-model.
-
-// Calling this as [rope data-structure] might be grossly wrong, for
-// there is neither a concat-op, nor a split-op. But it is largely
-// inspired from rope.
-//
-// Fundamentally, it can be viewed as a binary-tree of array-blocks, where
-// each leaf-node is a block of contiguous item of type T, while intermediate
-// nodes only hold references to the child nodes, left and right.
-// To be more precise, intermediate nodes in the tree are organised similar
-// to rope structure, as a tuple of (weight, left, right) where weight is
-// the sum of all items present in the leaf-nodes under the left-branch.
-
-// Alternates libraries:
-//
-// im: https://github.com/bodil/im-rs
-// rpds: https://github.com/orium/rpds
+//! Fundamentally, it can be viewed as a binary-tree of array-blocks, where
+//! each leaf-node is a block of contiguous item of type T, while intermediate
+//! nodes only hold references to the child nodes, left and right.
+//! To be more precise, intermediate nodes in the tree are organised similar
+//! to rope structure, as a tuple of (weight, left, right) where weight is
+//! the sum of all items present in the leaf-nodes under the left-branch.
+//!
+//! **Alternates libraries**:
+//!
+//! im: https://github.com/bodil/im-rs
+//! rpds: https://github.com/orium/rpds
 
 #[allow(unused_imports)]
 use log::debug;
@@ -25,9 +19,9 @@ use std::{borrow::Borrow, mem, rc::Rc};
 
 use crate::{Error, Result};
 
-const LEAF_CAP: usize = 1024; // in bytes.
+const LEAF_CAP: usize = 10 * 1024; // in bytes.
 
-pub struct Rope<T>
+pub struct Vector<T>
 where
     T: Sized + Clone,
 {
@@ -36,15 +30,15 @@ where
     auto_rebalance: bool,
 }
 
-impl<T> Rope<T>
+impl<T> Vector<T>
 where
     T: Sized + Clone,
 {
-    pub fn new() -> Rope<T> {
+    pub fn new() -> Self {
         let root = Node::Z {
             data: Vec::default(),
         };
-        Rope {
+        Vector {
             len: 0,
             root: Rc::new(root),
             auto_rebalance: true,
@@ -57,7 +51,7 @@ where
     }
 }
 
-impl<T> Rope<T>
+impl<T> Vector<T>
 where
     T: Sized + Clone,
 {
@@ -79,7 +73,7 @@ where
         Ok(val)
     }
 
-    pub fn insert(&self, off: usize, value: T) -> Result<Rope<T>> {
+    pub fn insert(&self, off: usize, value: T) -> Result<Self> {
         let rn = Rebalance::new(self);
         let (root, _) = if off <= self.len {
             self.root.insert(off, value, &rn)?
@@ -87,45 +81,45 @@ where
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        Ok(Rope {
+        Ok(Vector {
             root,
             len: self.len + 1,
             auto_rebalance: self.auto_rebalance,
         })
     }
 
-    pub fn set(&self, off: usize, value: T) -> Result<Rope<T>> {
+    pub fn set(&self, off: usize, value: T) -> Result<Self> {
         let root = if off < self.len {
             self.root.set(off, value)
         } else {
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        Ok(Rope {
+        Ok(Vector {
             root,
             len: self.len,
             auto_rebalance: self.auto_rebalance,
         })
     }
 
-    pub fn delete(&self, off: usize) -> Result<Rope<T>> {
+    pub fn delete(&self, off: usize) -> Result<Self> {
         let root = if off < self.len {
             self.root.delete(off)
         } else {
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        Ok(Rope {
+        Ok(Vector {
             root,
             len: self.len - 1,
             auto_rebalance: self.auto_rebalance,
         })
     }
 
-    pub fn rebalance(&self) -> Result<Rope<T>> {
+    pub fn rebalance(&self) -> Result<Self> {
         let rn = Rebalance::new(self);
         let (root, _) = Node::auto_rebalance(Rc::clone(&self.root), 0, true, &rn)?;
-        let val = Rope {
+        let val = Vector {
             len: self.len,
             root,
             auto_rebalance: self.auto_rebalance,
@@ -325,7 +319,7 @@ where
                 zs.reverse();
 
                 debug!(
-                    target: "rope",
+                    target: "ppar",
                     "rebalanced {} leaf nodes, depth:{:?}",
                     zs.len(),
                     depth
@@ -404,7 +398,7 @@ struct Rebalance {
 }
 
 impl Rebalance {
-    fn new<T: Sized + Clone>(r: &Rope<T>) -> Self {
+    fn new<T: Sized + Clone>(r: &Vector<T>) -> Self {
         let n_leafs = r.len / leaf_size::<T>(LEAF_CAP);
         Rebalance {
             n_leafs: n_leafs as f64,
@@ -422,5 +416,5 @@ impl Rebalance {
 }
 
 #[cfg(test)]
-#[path = "rope_test.rs"]
-mod rope_test;
+#[path = "ppar_test.rs"]
+mod ppar_test;

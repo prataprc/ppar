@@ -5,22 +5,22 @@ use std::fmt;
 use super::*;
 
 #[test]
-fn test_rope_new() {
-    let rr: Rope<u64> = Rope::new();
+fn test_new() {
+    let rr: Vector<u64> = Vector::new();
     assert!(rr.len() == 0);
 }
 
 #[test]
-fn test_rope_crud() {
+fn test_crud() {
     let seed: u128 = random();
     // let seed: u128 = 89704735013013664095413923566273445973;
-    println!("test_rope_insert1 seed {}", seed);
+    println!("test_insert1 seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let ops = [0, 1, 2, 3, 10, 100, 1000, 10_000, 1000_000];
     for n in ops.iter() {
         // println!("n .. {}", n);
-        let mut rr = Rope::new();
+        let mut rr = Vector::new();
         let mut refv = vec![];
 
         for _ in 0..*n {
@@ -72,16 +72,16 @@ fn test_rope_crud() {
 }
 
 #[test]
-fn test_rope_prepend() {
+fn test_prepend() {
     let seed: u128 = random();
     // let seed: u128 = 89704735013013664095413923566273445973;
-    println!("test_rope_prepend seed {}", seed);
+    println!("test_prepend seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let ops = [10_000, 1000_000];
     for n in ops.iter() {
         // println!("n .. {}", n);
-        let mut rr = Rope::new();
+        let mut rr = Vector::new();
         let mut refv: Vec<u64> = vec![];
 
         for _i in 0..*n {
@@ -109,11 +109,11 @@ fn test_rope_prepend() {
 }
 
 #[test]
-fn test_rope_delete_skew() {
+fn test_delete_skew() {
     let seed: u128 = random();
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let mut rr: Rope<u64> = Rope::new();
+    let mut rr: Vector<u64> = Vector::new();
     let mut refv = vec![];
 
     for _ in 0..100_000 {
@@ -132,10 +132,10 @@ fn test_rope_delete_skew() {
     validate(&rr, &refv);
 
     let ratio = mem_ratio(8, rr.footprint(), rr.len());
-    println!("test_rope_delete_skew n:{} mem_ratio:{}%", rr.len(), ratio,);
+    println!("test_delete_skew n:{} mem_ratio:{}%", rr.len(), ratio,);
 }
 
-fn validate<T>(r: &Rope<T>, refv: &[T])
+fn validate<T>(r: &Vector<T>, refv: &[T])
 where
     T: fmt::Debug + Clone + Eq + PartialEq,
 {

@@ -1,5 +1,5 @@
 [package]
-name = "pary"
+name = "ppar"
 version = "0.1.0"
 authors = ["prataprc <prataprc@gmail.com>"]
 edition = "2018"
@@ -11,4 +11,5 @@ log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug
 
 [dev-dependencies]
 im = "15.0.0"
+rpds = "0.7.0"
 rand = { version = "0.7.3", features = ["small_rng"] }
