@@ -26,7 +26,6 @@ pub const LEAF_CAP: usize = 10 * 1024; // in bytes.
 /// Persistent array, that can also be used as mutable vector.
 ///
 /// Use [mod@std::vec] when only single threaded mutable vector is needed.
-#[derive(Clone)]
 pub struct Vector<T>
 where
     T: Sized + Clone,
@@ -35,6 +34,17 @@ where
     root: Rc<Node<T>>,
     auto_rebalance: bool,
     leaf_cap: usize,
+}
+
+impl<T> Clone for Vector<T> {
+    fn clone(&self) -> Self {
+        Vector {
+            len: self.len,
+            root: Rc::clone(self.root),
+            auto_rebalance: self.auto_rebalance,
+            leaf_cap: self.auto_rebalance,
+        }
+    }
 }
 
 impl<T> Vector<T>
