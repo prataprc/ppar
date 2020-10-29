@@ -6,8 +6,8 @@ use super::*;
 
 #[test]
 fn test_new() {
-    let rr: Vector<u64> = Vector::new();
-    assert!(rr.len() == 0);
+    let arr: Vector<u64> = Vector::new();
+    assert!(arr.len() == 0);
 }
 
 #[test]
@@ -20,54 +20,54 @@ fn test_crud() {
     let ops = [0, 1, 2, 3, 10, 100, 1000, 10_000, 1000_000];
     for n in ops.iter() {
         // println!("n .. {}", n);
-        let mut rr = Vector::new();
+        let mut arr = Vector::new();
         let mut refv = vec![];
 
         for _ in 0..*n {
-            rr = match rng.gen::<u8>() % 4 {
+            arr = match rng.gen::<u8>() % 4 {
                 // get
-                0 if rr.len() > 0 => {
-                    let off = rng.gen::<usize>() % rr.len();
+                0 if arr.len() > 0 => {
+                    let off = rng.gen::<usize>() % arr.len();
                     // println!("get op {}", off);
-                    assert_eq!(refv[off], *rr.get(off).unwrap());
-                    rr
+                    assert_eq!(refv[off], *arr.get(off).unwrap());
+                    arr
                 }
                 // set
-                2 if rr.len() > 0 => {
-                    let off = rng.gen::<usize>() % rr.len();
+                2 if arr.len() > 0 => {
+                    let off = rng.gen::<usize>() % arr.len();
                     let val = rng.gen::<u64>();
                     // println!("set op {} {}", off, val);
 
                     refv[off] = val;
-                    let r1 = rr.set(off, val).unwrap();
-                    assert_eq!(rr.len(), r1.len());
+                    let r1 = arr.set(off, val).unwrap();
+                    assert_eq!(arr.len(), r1.len());
                     r1
                 }
                 // delete
-                3 if rr.len() > 0 => {
-                    let off = rng.gen::<usize>() % rr.len();
+                3 if arr.len() > 0 => {
+                    let off = rng.gen::<usize>() % arr.len();
                     // println!("del op {}", off);
 
                     refv.remove(off);
-                    let r1 = rr.delete(off).unwrap();
-                    assert_eq!(rr.len() - 1, r1.len());
+                    let r1 = arr.delete(off).unwrap();
+                    assert_eq!(arr.len() - 1, r1.len());
                     r1
                 }
                 // insert
                 _ => {
-                    let off = rng.gen::<usize>() % (rr.len() + 1);
+                    let off = rng.gen::<usize>() % (arr.len() + 1);
                     let val = rng.gen::<u64>();
                     // println!("insert op {} {}", off, val);
 
                     refv.insert(off, val);
-                    let r1 = rr.insert(off, val).unwrap();
-                    assert_eq!(rr.len() + 1, r1.len());
+                    let r1 = arr.insert(off, val).unwrap();
+                    assert_eq!(arr.len() + 1, r1.len());
                     r1
                 }
             };
         }
-        println!("ops:{}, n:{} footprint:{}", n, rr.len(), rr.footprint());
-        validate(&rr, &refv);
+        println!("ops:{}, n:{} footprint:{}", n, arr.len(), arr.footprint());
+        validate(&arr, &refv);
     }
 }
 
@@ -81,30 +81,30 @@ fn test_prepend() {
     let ops = [10_000, 1000_000];
     for n in ops.iter() {
         // println!("n .. {}", n);
-        let mut rr = Vector::new();
+        let mut arr = Vector::new();
         let mut refv: Vec<u64> = vec![];
 
         for _i in 0..*n {
             let val = rng.gen::<u64>();
             // println!("off:{} val:{}", n - _i - 1, val);
             refv.push(val);
-            let r1 = rr.insert(0, val).unwrap();
-            assert_eq!(rr.len() + 1, r1.len());
-            rr = r1
+            let r1 = arr.insert(0, val).unwrap();
+            assert_eq!(arr.len() + 1, r1.len());
+            arr = r1
         }
 
         refv.reverse();
-        validate_root(&rr.root, &refv);
+        validate_root(&arr.root, &refv);
 
-        let ratio = mem_ratio(8, rr.footprint(), rr.len());
+        let ratio = mem_ratio(8, arr.footprint(), arr.len());
         println!(
             "ops:{}, n:{} footprint:{} mem_ratio:{}",
             n,
-            rr.len(),
-            rr.footprint(),
+            arr.len(),
+            arr.footprint(),
             ratio
         );
-        validate(&rr, &refv);
+        validate(&arr, &refv);
     }
 }
 
@@ -113,26 +113,39 @@ fn test_delete_skew() {
     let seed: u128 = random();
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let mut rr: Vector<u64> = Vector::new();
+    let mut arr: Vector<u64> = Vector::new();
     let mut refv = vec![];
 
     for _ in 0..100_000 {
-        let off = rng.gen::<usize>() % (rr.len() + 1);
+        let off = rng.gen::<usize>() % (arr.len() + 1);
         let val = rng.gen::<u64>();
-        rr = rr.insert(off, val).unwrap();
+        arr = arr.insert(off, val).unwrap();
         refv.insert(off, val);
     }
 
     for _ in 0..90_000 {
-        let off = rng.gen::<usize>() % rr.len();
-        rr = rr.delete(off).unwrap();
+        let off = rng.gen::<usize>() % arr.len();
+        arr = arr.delete(off).unwrap();
         refv.remove(off);
     }
 
-    validate(&rr, &refv);
+    validate(&arr, &refv);
 
-    let ratio = mem_ratio(8, rr.footprint(), rr.len());
-    println!("test_delete_skew n:{} mem_ratio:{}%", rr.len(), ratio,);
+    let ratio = mem_ratio(8, arr.footprint(), arr.len());
+    println!("test_delete_skew n:{} mem_ratio:{}%", arr.len(), ratio);
+}
+
+#[test]
+fn test_from_slice() {
+    let seed: u128 = random();
+    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+
+    let vals: Vec<u64> = (0..1000_000).map(|_| rng.gen()).collect();
+    let arr = Vector::from_slice(&vals, None);
+    validate(&arr, &vals);
+
+    let ratio = mem_ratio(8, arr.footprint(), arr.len());
+    println!("test_from_slice n:{} mem_ratio:{}%", arr.len(), ratio);
 }
 
 fn validate<T>(r: &Vector<T>, refv: &[T])
@@ -149,7 +162,7 @@ where
     assert!(r.get(r.len()).is_err());
 }
 
-fn validate_root<T>(root: &Arc<Node<T>>, refv: &[T])
+fn validate_root<T>(root: &Rc<Node<T>>, refv: &[T])
 where
     T: fmt::Debug + Clone + Eq + PartialEq,
 {

@@ -26,6 +26,7 @@ pub const LEAF_CAP: usize = 10 * 1024; // in bytes.
 /// Persistent array, that can also be used as mutable vector.
 ///
 /// Use [mod@std::vec] when only single threaded mutable vector is needed.
+#[derive(Clone)]
 pub struct Vector<T>
 where
     T: Sized + Clone,
@@ -33,6 +34,7 @@ where
     len: usize,
     root: Rc<Node<T>>,
     auto_rebalance: bool,
+    leaf_cap: usize,
 }
 
 impl<T> Vector<T>
@@ -47,7 +49,34 @@ where
             len: 0,
             root: Rc::new(root),
             auto_rebalance: true,
+            leaf_cap: LEAF_CAP,
         }
+    }
+
+    pub fn from_slice(slice: &[T], leaf_node_size: Option<usize>) -> Self {
+        let n = leaf_size::<T>(leaf_node_size.unwrap_or(LEAF_CAP));
+
+        let (root, _) = {
+            let zs: Vec<Rc<Node<T>>> = slice
+                .chunks(n)
+                .map(|x| Rc::new(Node::Z { data: x.to_vec() }))
+                .collect();
+            let depth = ((zs.len() as f64).log2() as usize) + 1;
+            let mut iter = zs.into_iter();
+            let item = iter.next();
+            Node::build_bottoms_up(depth, item, &mut iter)
+        };
+        Vector {
+            len: slice.len(),
+            root,
+            auto_rebalance: true,
+            leaf_cap: leaf_node_size.unwrap_or(LEAF_CAP),
+        }
+    }
+
+    pub fn set_leaf_size(&mut self, leaf_size: usize) -> &mut Self {
+        self.leaf_cap = leaf_size;
+        self
     }
 
     pub fn set_auto_rebalance(&mut self, rebalance: bool) -> &mut Self {
@@ -90,6 +119,7 @@ where
             root,
             len: self.len + 1,
             auto_rebalance: self.auto_rebalance,
+            leaf_cap: self.leaf_cap,
         })
     }
 
@@ -104,6 +134,7 @@ where
             root,
             len: self.len,
             auto_rebalance: self.auto_rebalance,
+            leaf_cap: self.leaf_cap,
         })
     }
 
@@ -118,6 +149,7 @@ where
             root,
             len: self.len - 1,
             auto_rebalance: self.auto_rebalance,
+            leaf_cap: self.leaf_cap,
         })
     }
 
@@ -128,6 +160,7 @@ where
             len: self.len,
             root,
             auto_rebalance: self.auto_rebalance,
+            leaf_cap: self.leaf_cap,
         };
         Ok(val)
     }
@@ -207,7 +240,7 @@ where
                 };
                 (Node::newm(left, right, weight), depth + 1)
             }
-            Node::Z { data } if data.len() < leaf_size::<T>(LEAF_CAP) => {
+            Node::Z { data } if data.len() < leaf_size::<T>(rn.leaf_cap) => {
                 let mut ndata = data[..off].to_vec();
                 ndata.push(val);
                 ndata.extend_from_slice(&data[off..]);
@@ -320,8 +353,7 @@ where
         match doit {
             false => Ok((node, depth)),
             true => {
-                let mut zs = Self::collect_zs(&node);
-                zs.reverse();
+                let zs = Self::collect_zs(&node);
 
                 debug!(
                     target: "ppar",
@@ -331,7 +363,11 @@ where
                 );
 
                 let depth = ((zs.len() as f64).log2() as usize) + 1;
-                let (nroot, _) = Node::build_bottoms_up(depth, &mut zs);
+                let (nroot, _) = {
+                    let mut iter = zs.into_iter();
+                    let item = iter.next();
+                    Node::build_bottoms_up(depth, item, &mut iter)
+                };
 
                 Ok((nroot, depth))
             }
@@ -359,28 +395,30 @@ where
         }
     }
 
-    fn build_bottoms_up(depth: usize, zs: &mut Vec<Rc<Node<T>>>) -> (Rc<Node<T>>, usize) {
-        match (depth, zs.len()) {
-            (1, _) => match zs.pop() {
-                Some(l) => {
-                    let weight = l.len();
-                    let (n, left, right) = match zs.pop() {
-                        Some(r) => (weight + r.len(), l, r),
-                        None => (weight, l, Rc::new(Node::Z { data: vec![] })),
-                    };
-                    let node = Node::M {
-                        weight,
-                        left: left,
-                        right: right,
-                    };
-                    (Rc::new(node), n)
-                }
-                None => (Rc::new(Node::Z { data: vec![] }), 0),
-            },
-            (_, 0) => (Rc::new(Node::Z { data: vec![] }), 0),
-            (_, _) => {
-                let (left, weight) = Self::build_bottoms_up(depth - 1, zs);
-                let (right, m) = Self::build_bottoms_up(depth - 1, zs);
+    fn build_bottoms_up(
+        depth: usize,
+        item: Option<Rc<Node<T>>>,
+        ziter: &mut impl Iterator<Item = Rc<Node<T>>>,
+    ) -> (Rc<Node<T>>, usize) {
+        match (depth, item) {
+            (1, Some(l)) => {
+                let weight = l.len();
+                let (n, left, right) = match ziter.next() {
+                    Some(r) => (l.len() + r.len(), l, r),
+                    None => (l.len(), l, Rc::new(Node::Z { data: vec![] })),
+                };
+                let node = Node::M {
+                    weight,
+                    left,
+                    right,
+                };
+                (Rc::new(node), n)
+            }
+            (1, None) => (Rc::new(Node::Z { data: vec![] }), 0),
+            (_, None) => (Rc::new(Node::Z { data: vec![] }), 0),
+            (_, item) => {
+                let (left, weight) = Self::build_bottoms_up(depth - 1, item, ziter);
+                let (right, m) = Self::build_bottoms_up(depth - 1, ziter.next(), ziter);
                 let node = Node::M {
                     weight,
                     left,
@@ -400,14 +438,16 @@ fn leaf_size<T>(cap: usize) -> usize {
 struct Rebalance {
     n_leafs: f64,
     auto_rebalance: bool,
+    leaf_cap: usize,
 }
 
 impl Rebalance {
     fn new<T: Sized + Clone>(r: &Vector<T>) -> Self {
-        let n_leafs = r.len / leaf_size::<T>(LEAF_CAP);
+        let n_leafs = r.len / leaf_size::<T>(r.leaf_cap);
         Rebalance {
             n_leafs: n_leafs as f64,
             auto_rebalance: r.auto_rebalance,
+            leaf_cap: r.leaf_cap,
         }
     }
 
