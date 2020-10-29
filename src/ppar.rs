@@ -19,8 +19,13 @@ use std::{borrow::Borrow, mem, rc::Rc};
 
 use crate::{Error, Result};
 
-const LEAF_CAP: usize = 10 * 1024; // in bytes.
+/// Leaf not shall not exceed this default size, refer
+/// [Vector::set_leaf_size] for optimal configuration.
+pub const LEAF_CAP: usize = 10 * 1024; // in bytes.
 
+/// Persistent array, that can also be used as mutable vector.
+///
+/// Use [mod@std::vec] when only single threaded mutable vector is needed.
 pub struct Vector<T>
 where
     T: Sized + Clone,

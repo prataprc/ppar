@@ -50,68 +50,68 @@ use ppar::Vector as Vect;
 //    });
 //}
 
-#[bench]
-fn bench_im_vec_rand(b: &mut Bencher) {
-    let seed: u128 = random();
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
-
-    let mut arr: Vector<u64> = Vector::new();
-    b.iter(|| {
-        let off = rng.gen::<usize>() % (arr.len() + 1);
-        arr.insert(off, rng.gen::<u64>());
-    });
-}
-
-#[bench]
-#[allow(non_snake_case)]
-fn bench_im_vec_get_100K(b: &mut Bencher) {
-    let seed: u128 = random();
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
-
-    let mut arr: Vector<u64> = Vector::new();
-    for _ in 0..100_000 {
-        arr.insert(0, rng.gen::<u64>());
-    }
-    b.iter(|| {
-        let off = rng.gen::<usize>() % arr.len();
-        arr.get(off).unwrap();
-    });
-}
-
-#[bench]
-#[allow(non_snake_case)]
-fn bench_im_vec_set_100K(b: &mut Bencher) {
-    let seed: u128 = random();
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
-
-    let mut arr: Vector<u64> = Vector::new();
-    for _ in 0..100_000 {
-        arr.insert(0, rng.gen::<u64>());
-    }
-    b.iter(|| {
-        let off = rng.gen::<usize>() % arr.len();
-        arr.update(off, rng.gen::<u64>())
-    });
-}
-
-#[bench]
-#[allow(non_snake_case)]
-fn bench_im_vec_delete_100K(b: &mut Bencher) {
-    let seed: u128 = random();
-    // let seed: u128 = 165591759058987334402931296907057276118;
-    println!("seed {}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
-
-    let mut arr: Vector<u64> = Vector::new();
-    for _ in 0..100_000 {
-        arr.insert(0, rng.gen::<u64>());
-    }
-    b.iter(|| {
-        let off = rng.gen::<usize>() % arr.len();
-        arr.remove(off);
-        arr.insert(off, rng.gen::<u64>());
-    });
-}
+//#[bench]
+//fn bench_im_vec_rand(b: &mut Bencher) {
+//    let seed: u128 = random();
+//    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+//
+//    let mut arr: Vector<u64> = Vector::new();
+//    b.iter(|| {
+//        let off = rng.gen::<usize>() % (arr.len() + 1);
+//        arr.insert(off, rng.gen::<u64>());
+//    });
+//}
+//
+//#[bench]
+//#[allow(non_snake_case)]
+//fn bench_im_vec_get_100K(b: &mut Bencher) {
+//    let seed: u128 = random();
+//    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+//
+//    let mut arr: Vector<u64> = Vector::new();
+//    for _ in 0..100_000 {
+//        arr.insert(0, rng.gen::<u64>());
+//    }
+//    b.iter(|| {
+//        let off = rng.gen::<usize>() % arr.len();
+//        arr.get(off).unwrap();
+//    });
+//}
+//
+//#[bench]
+//#[allow(non_snake_case)]
+//fn bench_im_vec_set_100K(b: &mut Bencher) {
+//    let seed: u128 = random();
+//    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+//
+//    let mut arr: Vector<u64> = Vector::new();
+//    for _ in 0..100_000 {
+//        arr.insert(0, rng.gen::<u64>());
+//    }
+//    b.iter(|| {
+//        let off = rng.gen::<usize>() % arr.len();
+//        arr.update(off, rng.gen::<u64>())
+//    });
+//}
+//
+//#[bench]
+//#[allow(non_snake_case)]
+//fn bench_im_vec_delete_100K(b: &mut Bencher) {
+//    let seed: u128 = random();
+//    // let seed: u128 = 165591759058987334402931296907057276118;
+//    println!("seed {}", seed);
+//    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+//
+//    let mut arr: Vector<u64> = Vector::new();
+//    for _ in 0..100_000 {
+//        arr.insert(0, rng.gen::<u64>());
+//    }
+//    b.iter(|| {
+//        let off = rng.gen::<usize>() % arr.len();
+//        arr.remove(off);
+//        arr.insert(off, rng.gen::<u64>());
+//    });
+//}
 
 #[bench]
 fn bench_prepend(b: &mut Bencher) {
