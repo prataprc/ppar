@@ -72,7 +72,7 @@ fn ppar_load(mut arr: ppar::Vector<u64>, opts: &mut Opt, rng: &mut SmallRng) -> 
             "append-load({} items)",
             arr.len()
             =>
-            start.elapsed() / (opts.load as u32)
+            start.elapsed()
         );
     }
 
@@ -169,16 +169,13 @@ fn im_load(opts: &mut Opt, rng: &mut SmallRng) -> im::Vector<u64> {
     let vals: Vec<u64> = (0..opts.load).map(|_| rng.gen()).collect();
 
     let arr = {
-        let mut arr: im::Vector<u64> = im::Vector::new();
         let start = time::Instant::now();
-        for val in vals.into_iter() {
-            arr.push_back(val);
-        }
+        let mut arr: im::Vector<u64> = im::Vector::from(&vals);
         pp!(
             "append-load({} items)",
             arr.len()
             =>
-            start.elapsed() / (opts.load as u32)
+            start.elapsed()
         );
         arr
     };

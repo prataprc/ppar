@@ -7,7 +7,7 @@
 //! to rope structure, as a tuple of (weight, left, right) where weight is
 //! the sum of all items present in the leaf-nodes under the left-branch.
 //!
-//! **Alternates libraries**:
+//! **Alternate libraries**:
 //!
 //! * _[im](https://github.com/bodil/im-rs)_
 //! * _[rpds](https://github.com/orium/rpds)_
