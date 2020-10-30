@@ -8,6 +8,10 @@ edition = "2018"
 name = "perf"
 required-features = ["perf"]
 
+[[bin]]
+name = "check"
+required-features = ["check"]
+
 [dependencies]
 log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug"] }
 
@@ -22,4 +26,5 @@ rand = { version = "0.7.3", features = ["small_rng"]}
 
 [features]
 perf = ["structopt", "rand", "im"]
+check = ["structopt", "rand", "im"]
 ppar-rc = ["im-rc"]
