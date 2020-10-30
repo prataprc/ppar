@@ -12,7 +12,8 @@
 //!
 //! By default `Vector<T>` is thread safe through `Arc`. To get better
 //! performance over thread-safety, compile with `ppar-rc` feature, which uses
-//! `Rc` instead of `Arc`.
+//! `Rc` instead of `Arc`, that is, with Rc `Send` and `Sync` traits are not
+//! available for `Vector<T>`.
 //!
 //! **Alternate libraries**:
 //!
