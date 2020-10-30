@@ -15,6 +15,7 @@ the sum of all items present in the leaf-nodes under the left-branch.
 - [x] Convert from Vec<T> to ppar::Vector<T>.
 - [ ] Convert from ppar::Vector<T> to Vec<T>.
 - [x] Thread safe operations.
+- [ ] std::vec::Vec like mutable API.
 - [ ] Iteration over collection, item-wise, chunk-wise, reverse.
 - [ ] Deduplication.
 - [ ] Membership.
