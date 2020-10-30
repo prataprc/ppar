@@ -1,3 +1,5 @@
+[![Documentation](https://docs.rs/ppar/badge.svg?style=flat-square)](https://docs.rs/ppar)
+
 Package implement persistent array using a variant of rope data structure.
 
 Fundamentally, it can be viewed as a binary-tree of array-blocks, where
