@@ -194,6 +194,17 @@ where
         };
         Ok(val)
     }
+
+    // return only nodes that is referenced in multiple-versions. and
+    // the total number of nodes in the tree.
+    #[cfg(feature = "check")]
+    pub fn fetch_multiversions(&self) -> (Vec<*const u8>, usize) {
+        assert_eq!(strong_count(&self.root), 1);
+
+        let mut acc = vec![];
+        let n = self.root.fetch_multiversions(&mut acc);
+        (acc, n)
+    }
 }
 
 enum Node<T>
@@ -458,6 +469,26 @@ where
             }
         }
     }
+
+    // only used with src/bin/check program
+    #[cfg(feature = "check")]
+    fn fetch_multiversions(&self, acc: &mut Vec<*const u8>) -> usize {
+        match self {
+            Node::M { left, right, .. } => {
+                if strong_count(left) > 1 {
+                    acc.push(as_ptr(left));
+                }
+                let mut n = left.fetch_multiversions(acc);
+
+                if strong_count(right) > 1 {
+                    acc.push(as_ptr(right));
+                }
+                n += right.fetch_multiversions(acc);
+                n + 1
+            }
+            Node::Z { .. } => 1,
+        }
+    }
 }
 
 fn leaf_size<T>(cap: usize) -> usize {
@@ -488,6 +519,26 @@ impl Rebalance {
             _ => false,
         }
     }
+}
+
+#[cfg(all(feature = "ppar-rc", feature = "check"))]
+fn strong_count<T: Clone>(node: &NodeRef<T>) -> usize {
+    Rc::strong_count(node)
+}
+
+#[cfg(all(not(feature = "ppar-rc"), feature = "check"))]
+fn strong_count<T: Clone>(node: &NodeRef<T>) -> usize {
+    Arc::strong_count(node)
+}
+
+#[cfg(all(feature = "ppar-rc", feature = "check"))]
+fn as_ptr<T: Clone>(node: &NodeRef<T>) -> *const u8 {
+    Rc::as_ptr(node) as *const u8
+}
+
+#[cfg(all(not(feature = "ppar-rc"), feature = "check"))]
+fn as_ptr<T: Clone>(node: &NodeRef<T>) -> *const u8 {
+    Arc::as_ptr(node) as *const u8
 }
 
 #[cfg(test)]
