@@ -24,13 +24,12 @@ fn test_crud() {
         let mut refv = vec![];
 
         for _ in 0..*n {
-            arr = match rng.gen::<u8>() % 4 {
+            match rng.gen::<u8>() % 4 {
                 // get
                 0 if arr.len() > 0 => {
                     let off = rng.gen::<usize>() % arr.len();
                     // println!("get op {}", off);
                     assert_eq!(refv[off], *arr.get(off).unwrap());
-                    arr
                 }
                 // set
                 2 if arr.len() > 0 => {
@@ -39,9 +38,9 @@ fn test_crud() {
                     // println!("set op {} {}", off, val);
 
                     refv[off] = val;
-                    let r1 = arr.set(off, val).unwrap();
-                    assert_eq!(arr.len(), r1.len());
-                    r1
+                    let n = arr.len();
+                    arr.set(off, val).unwrap();
+                    assert_eq!(arr.len(), n);
                 }
                 // delete
                 3 if arr.len() > 0 => {
@@ -49,9 +48,9 @@ fn test_crud() {
                     // println!("del op {}", off);
 
                     refv.remove(off);
-                    let r1 = arr.delete(off).unwrap();
-                    assert_eq!(arr.len() - 1, r1.len());
-                    r1
+                    let n = arr.len();
+                    arr.delete(off).unwrap();
+                    assert_eq!(arr.len(), n - 1);
                 }
                 // insert
                 _ => {
@@ -60,9 +59,9 @@ fn test_crud() {
                     // println!("insert op {} {}", off, val);
 
                     refv.insert(off, val);
-                    let r1 = arr.insert(off, val).unwrap();
-                    assert_eq!(arr.len() + 1, r1.len());
-                    r1
+                    let n = arr.len();
+                    arr.insert(off, val).unwrap();
+                    assert_eq!(arr.len(), n + 1);
                 }
             };
         }
@@ -84,13 +83,12 @@ fn test_prepend() {
         let mut arr = Vector::new();
         let mut refv: Vec<u64> = vec![];
 
-        for _i in 0..*n {
+        for i in 0..*n {
             let val = rng.gen::<u64>();
             // println!("off:{} val:{}", n - _i - 1, val);
             refv.push(val);
-            let r1 = arr.insert(0, val).unwrap();
-            assert_eq!(arr.len() + 1, r1.len());
-            arr = r1
+            arr.insert(0, val).unwrap();
+            assert_eq!(arr.len(), i + 1);
         }
 
         refv.reverse();
@@ -119,13 +117,13 @@ fn test_delete_skew() {
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);
         let val = rng.gen::<u64>();
-        arr = arr.insert(off, val).unwrap();
+        arr.insert(off, val).unwrap();
         refv.insert(off, val);
     }
 
     for _ in 0..90_000 {
         let off = rng.gen::<usize>() % arr.len();
-        arr = arr.delete(off).unwrap();
+        arr.delete(off).unwrap();
         refv.remove(off);
     }
 

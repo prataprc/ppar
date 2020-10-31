@@ -12,9 +12,7 @@ fn bench_prepend(b: &mut Bencher) {
     let seed: u128 = random();
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
     let mut arr: Vector<u64> = Vector::new();
-    b.iter(|| {
-        arr = arr.insert(0, rng.gen::<u64>()).unwrap();
-    });
+    b.iter(|| arr.insert(0, rng.gen::<u64>()).unwrap());
 
     let ratio = mem_ratio(8, arr.footprint(), arr.len());
     println!("bench_prepend n:{} mem_ratio:{}%", arr.len(), ratio);
@@ -25,9 +23,7 @@ fn bench_append(b: &mut Bencher) {
     let seed: u128 = random();
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
     let mut arr: Vector<u64> = Vector::new();
-    b.iter(|| {
-        arr = arr.insert(arr.len(), rng.gen::<u64>()).unwrap();
-    });
+    b.iter(|| arr.insert(arr.len(), rng.gen::<u64>()).unwrap());
 
     let ratio = mem_ratio(8, arr.footprint(), arr.len());
     println!("bench_append n:{} mem_ratio:{}%", arr.len(), ratio);
@@ -41,7 +37,7 @@ fn bench_insert_rand(b: &mut Bencher) {
     let mut arr: Vector<u64> = Vector::new();
     b.iter(|| {
         let off = rng.gen::<usize>() % (arr.len() + 1);
-        arr = arr.insert(off, rng.gen::<u64>()).unwrap();
+        arr.insert(off, rng.gen::<u64>()).unwrap()
     });
 
     let ratio = mem_ratio(8, arr.footprint(), arr.len());
@@ -56,7 +52,7 @@ fn bench_get_100K(b: &mut Bencher) {
     let mut arr: Vector<u64> = Vector::new();
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);
-        arr = arr.insert(off, rng.gen::<u64>()).unwrap();
+        arr.insert(off, rng.gen::<u64>()).unwrap()
     }
     b.iter(|| {
         let off = rng.gen::<usize>() % arr.len();
@@ -75,11 +71,11 @@ fn bench_set_100K(b: &mut Bencher) {
     let mut arr: Vector<u64> = Vector::new();
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);
-        arr = arr.insert(off, rng.gen::<u64>()).unwrap();
+        arr.insert(off, rng.gen::<u64>()).unwrap()
     }
     b.iter(|| {
         let off = rng.gen::<usize>() % arr.len();
-        arr = arr.set(off, rng.gen::<u64>()).unwrap();
+        arr.set(off, rng.gen::<u64>()).unwrap();
     });
 
     let ratio = mem_ratio(8, arr.footprint(), arr.len());
@@ -96,12 +92,12 @@ fn bench_delete_100K(b: &mut Bencher) {
     let mut arr: Vector<u64> = Vector::new();
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);
-        arr = arr.insert(off, rng.gen::<u64>()).unwrap();
+        arr.insert(off, rng.gen::<u64>()).unwrap();
     }
     b.iter(|| {
         let off = rng.gen::<usize>() % arr.len();
-        arr = arr.delete(off).unwrap();
-        arr = arr.insert(off, rng.gen::<u64>()).unwrap();
+        arr.delete(off).unwrap();
+        arr.insert(off, rng.gen::<u64>()).unwrap();
     });
 
     let ratio = mem_ratio(8, arr.footprint(), arr.len());
@@ -117,7 +113,7 @@ fn bench_clone(b: &mut Bencher) {
     let mut arr: Vector<u64> = Vector::new();
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);
-        arr = arr.insert(off, rng.gen::<u64>()).unwrap();
+        arr.insert(off, rng.gen::<u64>()).unwrap();
     }
     let mut n = 0;
     b.iter(|| {

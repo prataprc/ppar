@@ -136,7 +136,7 @@ where
         Ok(val)
     }
 
-    pub fn insert(&self, off: usize, value: T) -> Result<Self> {
+    pub fn insert(&mut self, off: usize, value: T) -> Result<()> {
         let rn = Rebalance::new(self);
         let (root, _) = if off <= self.len {
             self.root.insert(off, value, &rn)?
@@ -144,42 +144,33 @@ where
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        Ok(Vector {
-            root,
-            len: self.len + 1,
-            auto_rebalance: self.auto_rebalance,
-            leaf_cap: self.leaf_cap,
-        })
+        self.root = root;
+        self.len += 1;
+
+        Ok(())
     }
 
-    pub fn set(&self, off: usize, value: T) -> Result<Self> {
-        let root = if off < self.len {
+    pub fn set(&mut self, off: usize, value: T) -> Result<T> {
+        let (root, val) = if off < self.len {
             self.root.set(off, value)
         } else {
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        Ok(Vector {
-            root,
-            len: self.len,
-            auto_rebalance: self.auto_rebalance,
-            leaf_cap: self.leaf_cap,
-        })
+        self.root = root;
+        Ok(val)
     }
 
-    pub fn delete(&self, off: usize) -> Result<Self> {
-        let root = if off < self.len {
+    pub fn delete(&mut self, off: usize) -> Result<T> {
+        let (root, val) = if off < self.len {
             self.root.delete(off)
         } else {
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
 
-        Ok(Vector {
-            root,
-            len: self.len - 1,
-            auto_rebalance: self.auto_rebalance,
-            leaf_cap: self.leaf_cap,
-        })
+        self.root = root;
+        self.len -= 1;
+        Ok(val)
     }
 
     pub fn rebalance(&self) -> Result<Self> {
@@ -197,7 +188,7 @@ where
 
     // return only nodes that is referenced in multiple-versions. and
     // the total number of nodes in the tree.
-    #[cfg(feature = "check")]
+    #[cfg(feature = "fuzzy")]
     pub fn fetch_multiversions(&self) -> (Vec<*const u8>, usize) {
         assert_eq!(strong_count(&self.root), 1);
 
@@ -295,33 +286,35 @@ where
         Ok((node, depth))
     }
 
-    fn set(&self, off: usize, value: T) -> NodeRef<T> {
+    fn set(&self, off: usize, value: T) -> (NodeRef<T>, T) {
         match self {
             Node::M {
                 weight,
                 left,
                 right,
             } if off < *weight => {
-                let left = left.set(off, value);
-                Node::newm(left, NodeRef::clone(right), *weight)
+                let (left, old) = left.set(off, value);
+                (Node::newm(left, NodeRef::clone(right), *weight), old)
             }
             Node::M {
                 weight,
                 left,
                 right,
             } => {
-                let right = right.set(off - *weight, value);
-                Node::newm(NodeRef::clone(left), right, *weight)
+                let (right, old) = right.set(off - *weight, value);
+                (Node::newm(NodeRef::clone(left), right, *weight), old)
             }
             Node::Z { data } => {
+                let old = data[off].clone();
+
                 let mut data = data.to_vec();
                 data[off] = value;
-                NodeRef::new(Node::Z { data })
+                (NodeRef::new(Node::Z { data }), old)
             }
         }
     }
 
-    fn delete(&self, off: usize) -> NodeRef<T> {
+    fn delete(&self, off: usize) -> (NodeRef<T>, T) {
         match self {
             Node::M {
                 weight,
@@ -337,17 +330,19 @@ where
                 //);
                 let weight = *weight;
                 if off < weight {
-                    let left = left.delete(off);
-                    Node::newm(left, NodeRef::clone(right), weight - 1)
+                    let (left, old) = left.delete(off);
+                    (Node::newm(left, NodeRef::clone(right), weight - 1), old)
                 } else {
-                    let right = right.delete(off - weight);
-                    Node::newm(NodeRef::clone(left), right, weight)
+                    let (right, old) = right.delete(off - weight);
+                    (Node::newm(NodeRef::clone(left), right, weight), old)
                 }
             }
             Node::Z { data } => {
+                let old = data[off].clone();
+
                 let mut ndata = data[..off].to_vec();
                 ndata.extend_from_slice(&data[(off + 1)..]);
-                NodeRef::new(Node::Z { data: ndata })
+                (NodeRef::new(Node::Z { data: ndata }), old)
             }
         }
     }
@@ -470,8 +465,8 @@ where
         }
     }
 
-    // only used with src/bin/check program
-    #[cfg(feature = "check")]
+    // only used with src/bin/fuzzy program
+    #[cfg(feature = "fuzzy")]
     fn fetch_multiversions(&self, acc: &mut Vec<*const u8>) -> usize {
         match self {
             Node::M { left, right, .. } => {
@@ -521,22 +516,22 @@ impl Rebalance {
     }
 }
 
-#[cfg(all(feature = "ppar-rc", feature = "check"))]
+#[cfg(all(feature = "ppar-rc", feature = "fuzzy"))]
 fn strong_count<T: Clone>(node: &NodeRef<T>) -> usize {
     Rc::strong_count(node)
 }
 
-#[cfg(all(not(feature = "ppar-rc"), feature = "check"))]
+#[cfg(all(not(feature = "ppar-rc"), feature = "fuzzy"))]
 fn strong_count<T: Clone>(node: &NodeRef<T>) -> usize {
     Arc::strong_count(node)
 }
 
-#[cfg(all(feature = "ppar-rc", feature = "check"))]
+#[cfg(all(feature = "ppar-rc", feature = "fuzzy"))]
 fn as_ptr<T: Clone>(node: &NodeRef<T>) -> *const u8 {
     Rc::as_ptr(node) as *const u8
 }
 
-#[cfg(all(not(feature = "ppar-rc"), feature = "check"))]
+#[cfg(all(not(feature = "ppar-rc"), feature = "fuzzy"))]
 fn as_ptr<T: Clone>(node: &NodeRef<T>) -> *const u8 {
     Arc::as_ptr(node) as *const u8
 }

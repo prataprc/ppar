@@ -1,6 +1,6 @@
-#[cfg(not(feature = "im-rc"))]
+#[cfg(not(feature = "ppar-rc"))]
 use im::Vector as ImVector;
-#[cfg(feature = "im-rc")]
+#[cfg(feature = "ppar-rc")]
 use im_rc::Vector as ImVector;
 use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
 use structopt::StructOpt;
@@ -88,7 +88,7 @@ fn ppar_load(mut arr: ppar::Vector<u64>, opts: &mut Opt, rng: &mut SmallRng) -> 
         let (offs, vals) = (offs.clone(), vals.clone());
         let start = time::Instant::now();
         for (off, val) in offs.into_iter().zip(vals) {
-            arr = arr.insert(off, val).unwrap();
+            arr.insert(off, val).unwrap();
         }
         pp!(
             "random-load({} items)",
@@ -126,7 +126,7 @@ fn ppar_ops(mut arr: ppar::Vector<u64>, opts: &Opt, rng: &mut SmallRng) -> ppar:
         let offs = offs.clone();
         let vals = vals.clone();
         for (off, val) in offs.into_iter().zip(vals.into_iter()) {
-            arr = arr.insert(off, val).unwrap();
+            arr.insert(off, val).unwrap();
         }
         pp!(
             "insert({} ops)",
@@ -141,7 +141,7 @@ fn ppar_ops(mut arr: ppar::Vector<u64>, opts: &Opt, rng: &mut SmallRng) -> ppar:
         let offs = offs.clone();
         let vals = vals.clone();
         for (off, val) in offs.into_iter().zip(vals.into_iter()) {
-            arr = arr.set(off, val).unwrap();
+            arr.set(off, val).unwrap();
         }
         pp!(
             "set({} ops)",
@@ -156,8 +156,8 @@ fn ppar_ops(mut arr: ppar::Vector<u64>, opts: &Opt, rng: &mut SmallRng) -> ppar:
         let offs = offs.clone();
         let vals = vals.clone();
         for (off, val) in offs.into_iter().zip(vals.into_iter()) {
-            arr = arr.delete(off).unwrap();
-            arr = arr.insert(off, val).unwrap();
+            arr.delete(off).unwrap();
+            arr.insert(off, val).unwrap();
         }
         pp!(
             "delete-insert({} ops)",
@@ -179,7 +179,7 @@ fn ppar_delete_skew(mut arr: ppar::Vector<u64>, rng: &mut SmallRng) -> ppar::Vec
         .collect();
 
     for off in offs.into_iter() {
-        arr = arr.delete(off).unwrap();
+        arr.delete(off).unwrap();
     }
 
     let ratio = format!("{:.2}%", mem_ratio(arr.footprint(), arr.len()));

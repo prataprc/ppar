@@ -11,8 +11,8 @@ name = "perf"
 required-features = ["perf"]
 
 [[bin]]
-name = "check"
-required-features = ["check"]
+name = "fuzzy"
+required-features = ["fuzzy"]
 
 [dependencies]
 log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug"] }
@@ -27,6 +27,6 @@ rpds = "0.7.0"
 rand = { version = "0.7.3", features = ["small_rng"]}
 
 [features]
-perf = ["structopt", "rand", "im"]
-check = ["structopt", "rand", "im"]
-ppar-rc = ["im-rc"]
+perf = ["structopt", "rand", "im", "im-rc"]
+fuzzy = ["structopt", "rand", "im", "im-rc"]
+ppar-rc = []

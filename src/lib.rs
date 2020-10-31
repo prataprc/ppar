@@ -26,7 +26,7 @@ use std::{error, fmt, result};
 mod util;
 mod ppar;
 
-pub use ppar::Vector;
+pub use crate::ppar::Vector;
 
 /// Type alias for Result return type, used by this package.
 pub type Result<T> = result::Result<T, Error>;

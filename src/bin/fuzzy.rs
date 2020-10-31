@@ -1,6 +1,6 @@
-#[cfg(not(feature = "im-rc"))]
+#[cfg(not(feature = "ppar-rc"))]
 use im::Vector as ImVector;
-#[cfg(feature = "im-rc")]
+#[cfg(feature = "ppar-rc")]
 use im_rc::Vector as ImVector;
 use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
 use structopt::StructOpt;
@@ -85,21 +85,21 @@ fn test_load(mut arr: ppar::Vector<u64>, opts: Opt) -> (ppar::Vector<u64>, ImVec
     let mut vals = vec![];
     for _i in 0..prepend_load {
         let val: u64 = rng.gen();
-        arr = arr.insert(0, val).unwrap();
+        arr.insert(0, val).unwrap();
         vals.push(val);
     }
     vals.reverse();
 
     for _ in 0..append_load {
         let val: u64 = rng.gen();
-        arr = arr.insert(arr.len(), val).unwrap();
+        arr.insert(arr.len(), val).unwrap();
         vals.push(val);
     }
 
     for _ in 0..opts.load {
         let off: usize = rng.gen::<usize>() % arr.len();
         let val: u64 = rng.gen();
-        arr = arr.set(off, val).unwrap();
+        arr.set(off, val).unwrap();
         vals[off] = val;
     }
 
@@ -126,7 +126,7 @@ fn test_ops(
             0 => {
                 let val: u64 = rng.gen();
                 // println!("off: {:10} {} op:{} thread:{}", off, val, op, n);
-                arr = arr.set(off, val).unwrap();
+                arr.set(off, val).unwrap();
                 im_arr = im_arr.update(off, val);
             }
             1 => {
@@ -141,13 +141,13 @@ fn test_ops(
             }
             2 => {
                 // println!("off: {:10} op:{} thread:{}", off, op, n);
-                arr = arr.delete(off).unwrap();
+                arr.delete(off).unwrap();
                 im_arr.remove(off);
             }
             3 => {
                 let val: u64 = rng.gen();
                 // println!("off: {:10} {} op:{} thread:{}", off, val, op, n);
-                arr = arr.insert(off, val).unwrap();
+                arr.insert(off, val).unwrap();
                 im_arr.insert(off, val);
             }
             _ => unreachable!(),
