@@ -141,7 +141,7 @@ fn test_ops(
             }
             2 => {
                 // println!("off: {:10} op:{} thread:{}", off, op, n);
-                arr.delete(off).unwrap();
+                arr.remove(off).unwrap();
                 im_arr.remove(off);
             }
             3 => {

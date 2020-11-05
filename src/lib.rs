@@ -4,16 +4,16 @@
 //! each leaf-node is a block of contiguous item of type `T`, while intermediate
 //! nodes only hold references to the child nodes, left and right.
 //! To be more precise, intermediate nodes in the tree are organised similar
-//! to rope structure, as a tuple of (weight, left, right) where weight is
-//! the sum of all items present in the leaf-nodes under the left-branch.
+//! to rope structure, as a tuple of (*weight*, *left*, *right*) where weight
+//! is the sum of all items present in the leaf-nodes under the left-branch.
 //!
 //! Thread Safety
 //! =============
 //!
-//! By default `Vector<T>` is thread safe through `Arc`. To get better
-//! performance over thread-safety, compile with `ppar-rc` feature, which uses
-//! `Rc` instead of `Arc`, that is, with Rc `Send` and `Sync` traits are not
-//! available for `Vector<T>`.
+//! By default `Vector<T>` is thread safe through `Arc`. To trade-off
+//! thread-safety for performance, compile with `ppar-rc` feature, which uses
+//! `Rc` instead of `Arc`, that is, `Send` and `Sync` traits are not available
+//! for `Vector<T>`.
 //!
 //! **Alternate libraries**:
 //!

@@ -96,7 +96,7 @@ fn bench_delete_100K(b: &mut Bencher) {
     }
     b.iter(|| {
         let off = rng.gen::<usize>() % arr.len();
-        arr.delete(off).unwrap();
+        arr.remove(off).unwrap();
         arr.insert(off, rng.gen::<u64>()).unwrap();
     });
 

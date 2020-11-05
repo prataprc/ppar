@@ -156,7 +156,7 @@ fn ppar_ops(mut arr: ppar::Vector<u64>, opts: &Opt, rng: &mut SmallRng) -> ppar:
         let offs = offs.clone();
         let vals = vals.clone();
         for (off, val) in offs.into_iter().zip(vals.into_iter()) {
-            arr.delete(off).unwrap();
+            arr.remove(off).unwrap();
             arr.insert(off, val).unwrap();
         }
         pp!(
@@ -179,7 +179,7 @@ fn ppar_delete_skew(mut arr: ppar::Vector<u64>, rng: &mut SmallRng) -> ppar::Vec
         .collect();
 
     for off in offs.into_iter() {
-        arr.delete(off).unwrap();
+        arr.remove(off).unwrap();
     }
 
     let ratio = format!("{:.2}%", mem_ratio(arr.footprint(), arr.len()));

@@ -5,7 +5,7 @@
 //! nodes only hold references to the child nodes, left and right.
 //! To be more precise, intermediate nodes in the tree are organised similar
 //! to rope structure, as a tuple of (weight, left, right) where weight is
-//! the sum of all items present in the leaf-nodes under the left-branch.
+//! the sum of all elements present in the leaf-nodes under the left-branch.
 //!
 //! **Alternates libraries**:
 //!
@@ -34,8 +34,6 @@ type NodeRef<T> = Rc<Node<T>>;
 type NodeRef<T> = Arc<Node<T>>;
 
 /// Persistent array, that can also be used as mutable vector.
-///
-/// Use [mod@std::vec] when only single threaded mutable vector is needed.
 pub struct Vector<T>
 where
     T: Sized + Clone,
@@ -47,7 +45,7 @@ where
 }
 
 impl<T: Clone> Clone for Vector<T> {
-    fn clone(&self) -> Self {
+    fn clone(&self) -> Vector<T> {
         Vector {
             len: self.len,
             root: NodeRef::clone(&self.root),
@@ -61,7 +59,8 @@ impl<T> Vector<T>
 where
     T: Sized + Clone,
 {
-    pub fn new() -> Self {
+    /// Create a new empty Vector.
+    pub fn new() -> Vector<T> {
         let root = Node::Z {
             data: Vec::default(),
         };
@@ -73,7 +72,8 @@ where
         }
     }
 
-    pub fn from_slice(slice: &[T], leaf_node_size: Option<usize>) -> Self {
+    /// Construct a new vector with an initial array of values.
+    pub fn from_slice(slice: &[T], leaf_node_size: Option<usize>) -> Vector<T> {
         let n = leaf_size::<T>(leaf_node_size.unwrap_or(LEAF_CAP));
 
         let (root, _) = {
@@ -94,10 +94,10 @@ where
         }
     }
 
-    /// Size of the leaf node can be adjusted. Note that all leaf nodes
-    /// shall be of equal size set by `leaf_size`. Setting a large value will
-    /// make the tree shallow giving better read performance, at the expense
-    /// of write performance. Leaf size must be specified in bytes.
+    /// Set the size of the leaf node in bytes. All leaf nodes shall be of
+    /// equal size set by `leaf_size`. Setting a large value will make the
+    /// tree shallow giving better read performance, at the expense
+    /// of write performance.
     pub fn set_leaf_size(&mut self, leaf_size: usize) -> &mut Self {
         self.leaf_cap = leaf_size;
         self
@@ -105,9 +105,10 @@ where
 
     /// Auto rebalance is enabled by default. This has some penalty for write
     /// heavy situations, since every write op will try to rebalance the tree
-    /// if goes too much off-balance. Application can disable auto-rebalance
-    /// to get maximum efficiency, and call [Self::rebalance] method as and
-    /// when required.
+    /// when it goes too much off-balance. Application can disable
+    /// auto-rebalance to get maximum efficiency, and call [Self::rebalance]
+    /// method as and when required. Make sure *you know what you are doing*
+    /// before disabling auto-rebalance.
     pub fn set_auto_rebalance(&mut self, rebalance: bool) -> &mut Self {
         self.auto_rebalance = rebalance;
         self
@@ -118,14 +119,19 @@ impl<T> Vector<T>
 where
     T: Sized + Clone,
 {
+    /// Return the length of the vector, that is, number of elements in the
+    /// vector.
     pub fn len(&self) -> usize {
         self.len
     }
 
+    /// Return the memory foot-print for this instance.
     pub fn footprint(&self) -> usize {
         mem::size_of_val(self) + self.root.footprint()
     }
 
+    /// Return a reference to the element at that position or `IndexFail` error
+    /// if out of bounds.
     pub fn get(&self, index: usize) -> Result<&T> {
         let val = if index < self.len {
             self.root.get(index)
@@ -136,6 +142,8 @@ where
         Ok(val)
     }
 
+    /// Insert an element at `off` position within the vector, or `IndexFail`
+    /// error if out of bounds.
     pub fn insert(&mut self, off: usize, value: T) -> Result<()> {
         let rn = Rebalance::new(self);
         let (root, _) = if off <= self.len {
@@ -150,6 +158,8 @@ where
         Ok(())
     }
 
+    /// Update the element at `off` position within the vector, or `IndexFail`
+    /// error if out of bounds.
     pub fn set(&mut self, off: usize, value: T) -> Result<T> {
         let (root, val) = if off < self.len {
             self.root.set(off, value)
@@ -161,7 +171,9 @@ where
         Ok(val)
     }
 
-    pub fn delete(&mut self, off: usize) -> Result<T> {
+    /// Remove and return the element at `off` position within the vector,
+    /// or `IndexFail` error if out of bounds.
+    pub fn remove(&mut self, off: usize) -> Result<T> {
         let (root, val) = if off < self.len {
             self.root.delete(off)
         } else {
@@ -173,6 +185,7 @@ where
         Ok(val)
     }
 
+    /// When auto-rebalance is disabled, use this method to rebalance the tree.
     pub fn rebalance(&self) -> Result<Self> {
         let rn = Rebalance::new(self);
         let root = NodeRef::clone(&self.root);
@@ -498,7 +511,7 @@ struct Rebalance {
 }
 
 impl Rebalance {
-    fn new<T: Sized + Clone>(r: &Vector<T>) -> Self {
+    fn new<T: Sized + Clone>(r: &Vector<T>) -> Rebalance {
         let n_leafs = r.len / leaf_size::<T>(r.leaf_cap);
         Rebalance {
             n_leafs: n_leafs as f64,

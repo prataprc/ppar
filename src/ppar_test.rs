@@ -49,7 +49,7 @@ fn test_crud() {
 
                     refv.remove(off);
                     let n = arr.len();
-                    arr.delete(off).unwrap();
+                    arr.remove(off).unwrap();
                     assert_eq!(arr.len(), n - 1);
                 }
                 // insert
@@ -123,7 +123,7 @@ fn test_delete_skew() {
 
     for _ in 0..90_000 {
         let off = rng.gen::<usize>() % arr.len();
-        arr.delete(off).unwrap();
+        arr.remove(off).unwrap();
         refv.remove(off);
     }
 
