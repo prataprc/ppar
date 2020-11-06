@@ -2,14 +2,32 @@
 
 Package implement persistent array using a variant of rope data structure.
 
+Why would you want it ?
+-----------------------
+
+Array is implemented as [std::vec][std_vec] in rust-standard library.
+For most cases that should be fine. But when we start working with arrays
+that are super-large and/or step into requirements like  non-destructive
+writes and concurrent access, we find [std::vec][std_vec] insufficient.
+[im][im] is a popular alternative, but has `insert()` and `delete()`
+penalties similar to `std::vec` for large arrays. While most implementation
+prefer to use [RRB-Tree][rrb], `ppar` uses a modified version of
+[Rope data structure][rope].
+
 Fundamentally, it can be viewed as a binary-tree of array-blocks, where
 each leaf-node is a contiguous-block of type `T` items, while intermediate
-nodes only hold references to the child nodes, left and right.
+nodes only hold references to the child nodes - `left` and `right`.
 To be more precise, intermediate nodes in the tree are organised similar
-to rope structure, as a tuple of (weight, left, right) where weight is
+to rope structure, as a tuple of `(weight, left, right)` where weight is
 the sum of all items present in the leaf-nodes under the left-branch.
 
-**Stated goals**:
+A list of alternatives can be found [here][#alternate-solutions]. If you
+find good alternatives please add it to the list and raise a PR.
+
+If you are planning to use `ppar` for your project, do let us know.
+
+Stated goals
+------------
 
 - [x] Vector parametrized over type T.
 - [x] Immutable / Persistent collection of Vector<T>.
@@ -17,7 +35,7 @@ the sum of all items present in the leaf-nodes under the left-branch.
 - [x] Convert from Vec<T> to ppar::Vector<T>.
 - [ ] Convert from ppar::Vector<T> to Vec<T>.
 - [x] Thread safe operations.
-- [ ] std::vec::Vec like mutable API.
+- [ ] [std::vec::Vec][std_vector] like mutable API.
 - [ ] Iteration over collection, item-wise, chunk-wise, reverse.
 - [ ] Deduplication.
 - [ ] Membership.
@@ -35,10 +53,21 @@ the sum of all items present in the leaf-nodes under the left-branch.
   - [ ] Hash
   - [ ] Index, IndexMut
   - [ ] Write
-- [ ] Parallel iteration with [rayon](https://crates.io/crates/rayon).
-- [ ] Arbitrary implementation from [quickcheck](https://crates.io/crates/quickcheck).
+- [ ] Parallel iteration with [rayon][rayon].
+- [ ] Arbitrary implementation from [quickcheck][quickcheck].
 
-**Benchmark**:
+The basic algorithm is fairly tight. Though we can make the `ppar::Vector`
+type as rich as [std::vec::Vec][std_vector] and [im::Vector][im_vector].
+
+Contributions
+-------------
+
+* Simple workflow. Fork, modify and raise a pull request.
+* TODO: Developer certificate of origin.
+* TODO: cargo make.
+
+Benchmark
+---------
 
 On a 2010 8GB core2-duo machine, thread safe:
 
@@ -77,7 +106,18 @@ overhead                       : "37.19%"
 overhead after 90% delete      : "33.30%"
 ```
 
-**Alternate libraries**:
+Alternate solutions
+-------------------
 
-* _[im](https://github.com/bodil/im-rs)_
-* _[rpds](https://github.com/orium/rpds)_
+* [im][im]
+* [rpds][rpds]
+
+[im]: https://github.com/bodil/im-rs
+[im_vector]: https://docs.rs/im/15.0.0/im/struct.Vector.html
+[rope]: https://en.wikipedia.org/wiki/Rope_(data_structure)
+[rpds]: https://github.com/orium/rpds
+[std_vec]: https://doc.rust-lang.org/beta/std/vec/index.html
+[std_vector]: https://doc.rust-lang.org/beta/std/vec/struct.Vec.html
+[rrb]: https://infoscience.epfl.ch/record/213452/files/rrbvector.pdf
+[rayon]: https://crates.io/crates/rayon
+[quickcheck]: https://crates.io/crates/quickcheck
