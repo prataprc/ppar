@@ -6,14 +6,6 @@
 //! To be more precise, intermediate nodes in the tree are organised similar
 //! to rope structure, as a tuple of (weight, left, right) where weight is
 //! the sum of all elements present in the leaf-nodes under the left-branch.
-//!
-//! **Alternates libraries**:
-//!
-//! im: https://github.com/bodil/im-rs
-//! rpds: https://github.com/orium/rpds
-
-#[allow(unused_imports)]
-use log::debug;
 
 #[cfg(feature = "ppar-rc")]
 use std::rc::Rc;
@@ -403,14 +395,6 @@ where
             false => Ok((node, depth)),
             true => {
                 let zs = Self::collect_zs(&node);
-
-                debug!(
-                    target: "ppar",
-                    "rebalanced {} leaf nodes, depth:{:?}",
-                    zs.len(),
-                    depth
-                );
-
                 let depth = ((zs.len() as f64).log2() as usize) + 1;
                 let (nroot, _) = {
                     let mut iter = zs.into_iter();
