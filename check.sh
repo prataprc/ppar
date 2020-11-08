@@ -1,5 +1,5 @@
 cargo test -- --nocapture
-cargo run --release --bin fuzzy --features=fuzzy # thread-safe
-cargo run --release --bin fuzzy --features=fuzzy -- --rc
+cargo run --release --bin fuzzy --features=fuzzing # thread-safe
+cargo run --release --bin fuzzy --features=fuzzing -- --rc
 
 # (cd rc; cargo test -- --nocapture)

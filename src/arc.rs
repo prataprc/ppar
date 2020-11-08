@@ -14,12 +14,12 @@ where
     }
 }
 
-#[cfg(feature = "fuzzy")]
+#[cfg(feature = "fuzzing")]
 fn strong_count<T: Clone>(node: &NodeRef<T>) -> usize {
     Arc::strong_count(node)
 }
 
-#[cfg(feature = "fuzzy")]
+#[cfg(feature = "fuzzing")]
 fn as_ptr<T: Clone>(node: &NodeRef<T>) -> *const u8 {
     Arc::as_ptr(node) as *const u8
 }

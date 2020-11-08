@@ -126,6 +126,34 @@ fn test_from_slice() {
     validate(&arr, &vals);
 }
 
+#[test]
+fn test_iter() {
+    let seed: u128 = random();
+    println!("test_iter seed {}", seed);
+    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+
+    let vals: Vec<u64> = (0..1000_000).map(|_| rng.gen()).collect();
+    let arr = Vector::from_slice(&vals, None);
+    let iter_vals: Vec<u64> = arr.iter().map(|x| *x).collect();
+
+    println!("{:?}", iter_vals);
+    assert_eq!(vals, iter_vals);
+}
+
+#[test]
+fn test_into_iter() {
+    let seed: u128 = random();
+    println!("test_iter seed {}", seed);
+    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+
+    let vals: Vec<u64> = (0..1000_000).map(|_| rng.gen()).collect();
+    let arr = Vector::from_slice(&vals, None);
+    let iter_vals: Vec<u64> = arr.into_iter().collect();
+
+    println!("{:?}", iter_vals);
+    assert_eq!(vals, iter_vals);
+}
+
 fn validate<T>(arr: &Vector<T>, refv: &[T])
 where
     T: fmt::Debug + Clone + Eq + PartialEq,

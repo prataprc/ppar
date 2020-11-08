@@ -24,22 +24,38 @@ impl<T> Clone for Vector<T> {
     }
 }
 
-#[cfg(any(feature = "arbitrary", feature = "fuzzing"))]
-impl<T: arbitrary::Arbitrary> arbitrary::Arbitrary for Vector<T> {
-    fn arbitrary(u: &mut Unstructured) -> Result<Self> {
+#[cfg(any(feature = "arbitrary", feature = "fuzzing", test))]
+impl<T> arbitrary::Arbitrary for Vector<T>
+where
+    T: Clone + arbitrary::Arbitrary,
+{
+    fn arbitrary(u: &mut arbitrary::unstructured::Unstructured) -> arbitrary::Result<Self> {
         let k = std::mem::size_of::<T>();
-        let leaf_cap = u.choose(&[k, k * 2, k * 100, k * 1000, k * 10000]).clone();
-        let auto_reb = u.choose(&[true, false]).clone(); // auto_rebalance
+        let leaf_cap = u.choose(&[k, k * 2, k * 100, k * 1000, k * 10000])?.clone();
+        let auto_reb = u.choose(&[true, false])?.clone(); // auto_rebalance
 
-        let mut arr = {
-            let arr: Vec<T> = u.arbitrary();
-
-            Vector::from_slice(&arr, Some(leaf_cap));
-            arr.set_auto_rebalance(auto_reb);
-            arr
-        };
-
+        let arr: Vec<T> = u.arbitrary()?;
+        let mut arr = Vector::from_slice(&arr, Some(leaf_cap));
+        arr.set_auto_rebalance(auto_reb);
         Ok(arr)
+    }
+}
+
+impl<T> IntoIterator for Vector<T>
+where
+    T: Clone,
+{
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let mut iter = IntoIter {
+            stack: Vec::default(),
+            node: None,
+            off: 0,
+        };
+        Node::build_into_iter_stack(&self.root, &mut iter);
+        iter
     }
 }
 
@@ -185,6 +201,10 @@ where
         Ok(val)
     }
 
+    pub fn iter(&self) -> Iter<T> {
+        Iter::new(&self.root)
+    }
+
     /// When auto-rebalance is disabled, use this method to rebalance the tree.
     pub fn rebalance(&self) -> Result<Self> {
         let rn = Rebalance::new(self);
@@ -201,7 +221,7 @@ where
 
     // return only nodes that is referenced in multiple-versions. and
     // the total number of nodes in the tree.
-    #[cfg(feature = "fuzzy")]
+    #[cfg(feature = "fuzzing")]
     pub fn fetch_multiversions(&self) -> (Vec<*const u8>, usize) {
         assert_eq!(strong_count(&self.root), 1);
 
@@ -474,8 +494,32 @@ where
         (root, n)
     }
 
+    fn build_iter_stack<'a, 'b>(&'a self, iter: &'b mut Iter<'a, T>) {
+        match self {
+            Node::M { left, right, .. } => {
+                iter.stack.push(&right);
+                left.build_iter_stack(iter);
+            }
+            node @ Node::Z { .. } => {
+                iter.node = Some(node);
+            }
+        }
+    }
+
+    fn build_into_iter_stack(node: &NodeRef<T>, iter: &mut IntoIter<T>) {
+        match node.as_ref() {
+            Node::M { left, right, .. } => {
+                iter.stack.push(NodeRef::clone(right));
+                Self::build_into_iter_stack(left, iter);
+            }
+            Node::Z { .. } => {
+                iter.node = Some(NodeRef::clone(node));
+            }
+        }
+    }
+
     // only used with src/bin/fuzzy program
-    #[cfg(feature = "fuzzy")]
+    #[cfg(feature = "fuzzing")]
     fn fetch_multiversions(&self, acc: &mut Vec<*const u8>) -> usize {
         match self {
             Node::M { left, right, .. } => {
@@ -525,7 +569,80 @@ impl Rebalance {
     }
 }
 
-#[cfg(feature = "fuzzy")]
+pub struct Iter<'a, T> {
+    stack: Vec<&'a Node<T>>,
+    node: Option<&'a Node<T>>,
+    off: usize,
+}
+
+impl<'a, T> Iter<'a, T> {
+    fn new(root: &'a Node<T>) -> Iter<'a, T> {
+        let mut iter = Iter {
+            stack: Vec::default(),
+            node: None,
+            off: 0,
+        };
+        root.build_iter_stack(&mut iter);
+        iter
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<&'a T> {
+        match self.node {
+            Some(Node::Z { data }) if self.off < data.len() => {
+                let item = &data[self.off];
+                self.off += 1;
+                Some(item)
+            }
+            Some(Node::Z { .. }) | None => match self.stack.pop() {
+                Some(node) => {
+                    self.off = 0;
+                    node.build_iter_stack(self);
+                    self.next()
+                }
+                None => None,
+            },
+            Some(_) => unreachable!(),
+        }
+    }
+}
+
+pub struct IntoIter<T> {
+    stack: Vec<NodeRef<T>>,
+    node: Option<NodeRef<T>>,
+    off: usize,
+}
+
+impl<T> Iterator for IntoIter<T>
+where
+    T: Clone,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<T> {
+        match self.node.as_ref().map(|x| x.as_ref()) {
+            Some(Node::Z { data }) if self.off < data.len() => {
+                let item = data[self.off].clone();
+                self.off += 1;
+                Some(item)
+            }
+            Some(Node::Z { .. }) | None => match self.stack.pop() {
+                Some(node) => {
+                    self.off = 0;
+                    Node::build_into_iter_stack(&node, self);
+                    self.next()
+                }
+                None => None,
+            },
+            Some(_) => unreachable!(),
+        }
+    }
+}
+
+#[cfg(feature = "fuzzing")]
 enum Op {
     //
 }
