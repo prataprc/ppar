@@ -8,18 +8,18 @@ use super::*;
 fn test_new() {
     let arr: Vector<u64> = Vector::new();
     assert!(arr.len() == 0);
+    println!("is thread-safe {}", arr.is_thread_safe());
 }
 
 #[test]
 fn test_crud() {
     let seed: u128 = random();
     // let seed: u128 = 89704735013013664095413923566273445973;
-    println!("test_insert1 seed {}", seed);
+    println!("test_crud seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let ops = [0, 1, 2, 3, 10, 100, 1000, 10_000, 1000_000];
     for n in ops.iter() {
-        // println!("n .. {}", n);
         let mut arr = Vector::new();
         let mut refv = vec![];
 
@@ -28,14 +28,12 @@ fn test_crud() {
                 // get
                 0 if arr.len() > 0 => {
                     let off = rng.gen::<usize>() % arr.len();
-                    // println!("get op {}", off);
                     assert_eq!(refv[off], *arr.get(off).unwrap());
                 }
                 // set
                 2 if arr.len() > 0 => {
                     let off = rng.gen::<usize>() % arr.len();
                     let val = rng.gen::<u64>();
-                    // println!("set op {} {}", off, val);
 
                     refv[off] = val;
                     let n = arr.len();
@@ -45,7 +43,6 @@ fn test_crud() {
                 // delete
                 3 if arr.len() > 0 => {
                     let off = rng.gen::<usize>() % arr.len();
-                    // println!("del op {}", off);
 
                     refv.remove(off);
                     let n = arr.len();
@@ -56,7 +53,6 @@ fn test_crud() {
                 _ => {
                     let off = rng.gen::<usize>() % (arr.len() + 1);
                     let val = rng.gen::<u64>();
-                    // println!("insert op {} {}", off, val);
 
                     refv.insert(off, val);
                     let n = arr.len();
@@ -65,7 +61,14 @@ fn test_crud() {
                 }
             };
         }
-        println!("ops:{}, n:{} footprint:{}", n, arr.len(), arr.footprint());
+        let ratio = mem_ratio(8, arr.footprint(), arr.len());
+        assert!(
+            ratio < 100.0,
+            "n:{} footprint:{} ratio:{}",
+            arr.len(),
+            arr.footprint(),
+            ratio,
+        );
         validate(&arr, &refv);
     }
 }
@@ -79,13 +82,11 @@ fn test_prepend() {
 
     let ops = [10_000, 1000_000];
     for n in ops.iter() {
-        // println!("n .. {}", n);
         let mut arr = Vector::new();
         let mut refv: Vec<u64> = vec![];
 
         for i in 0..*n {
             let val = rng.gen::<u64>();
-            // println!("off:{} val:{}", n - _i - 1, val);
             refv.push(val);
             arr.insert(0, val).unwrap();
             assert_eq!(arr.len(), i + 1);
@@ -95,9 +96,9 @@ fn test_prepend() {
         validate_root(&arr.root, &refv);
 
         let ratio = mem_ratio(8, arr.footprint(), arr.len());
-        println!(
-            "ops:{}, n:{} footprint:{} mem_ratio:{}",
-            n,
+        assert!(
+            ratio < 100.0,
+            "n:{} footprint:{} ratio:{}",
             arr.len(),
             arr.footprint(),
             ratio
@@ -109,6 +110,7 @@ fn test_prepend() {
 #[test]
 fn test_delete_skew() {
     let seed: u128 = random();
+    println!("test_delete_skew seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let mut arr: Vector<u64> = Vector::new();
@@ -130,12 +132,19 @@ fn test_delete_skew() {
     validate(&arr, &refv);
 
     let ratio = mem_ratio(8, arr.footprint(), arr.len());
-    println!("test_delete_skew n:{} mem_ratio:{}%", arr.len(), ratio);
+    assert!(
+        ratio < 100.0,
+        "n:{} footprint:{} ratio:{}",
+        arr.len(),
+        arr.footprint(),
+        ratio
+    );
 }
 
 #[test]
 fn test_from_slice() {
     let seed: u128 = random();
+    println!("test_from_slice seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let vals: Vec<u64> = (0..1000_000).map(|_| rng.gen()).collect();
@@ -143,7 +152,13 @@ fn test_from_slice() {
     validate(&arr, &vals);
 
     let ratio = mem_ratio(8, arr.footprint(), arr.len());
-    println!("test_from_slice n:{} mem_ratio:{}%", arr.len(), ratio);
+    assert!(
+        ratio < 100.0,
+        "n:{} footprint:{} ratio:{}",
+        arr.len(),
+        arr.footprint(),
+        ratio
+    );
 }
 
 fn validate<T>(r: &Vector<T>, refv: &[T])
@@ -181,5 +196,15 @@ where
 }
 
 fn mem_ratio(size: usize, mem: usize, n: usize) -> f64 {
-    ((((mem as f64) / (n as f64)) - (size as f64)) / size as f64) * 100_f64
+    match n {
+        0 => {
+            assert!(mem < 100, "{}", mem);
+            0.1
+        }
+        n if n < 10 => {
+            assert!(mem < ((10 * size) + 100), "{}", mem);
+            0.1
+        }
+        n => ((((mem as f64) / (n as f64)) - (size as f64)) / size as f64) * 100_f64,
+    }
 }
