@@ -22,6 +22,7 @@ name = "fuzzy"
 required-features = ["fuzzy"]
 
 [dependencies]
+arbitrary = { version = "0.4.7", features = ["derive"], optional = true }
 structopt = { version = "0.3.20", default-features = false, optional = true }
 rand = { version = "0.7.3", features = ["small_rng"], optional = true}
 im = { version = "15.0.0", optional = true }
@@ -32,5 +33,4 @@ rand = { version = "0.7.3", features = ["small_rng"]}
 
 [features]
 perf = ["structopt", "rand", "im", "im-rc"]
-fuzzy = ["structopt", "rand", "im", "im-rc"]
-ppar-rc = []
+fuzzy = ["arbitrary", "structopt", "rand", "im", "im-rc"]

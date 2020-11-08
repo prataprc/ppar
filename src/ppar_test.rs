@@ -61,14 +61,6 @@ fn test_crud() {
                 }
             };
         }
-        let ratio = mem_ratio(8, arr.footprint(), arr.len());
-        assert!(
-            ratio < 100.0,
-            "n:{} footprint:{} ratio:{}",
-            arr.len(),
-            arr.footprint(),
-            ratio,
-        );
         validate(&arr, &refv);
     }
 }
@@ -76,7 +68,7 @@ fn test_crud() {
 #[test]
 fn test_prepend() {
     let seed: u128 = random();
-    // let seed: u128 = 89704735013013664095413923566273445973;
+    // let seed: u128 = 252658238112610282069224390866000906287;
     println!("test_prepend seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
@@ -94,15 +86,6 @@ fn test_prepend() {
 
         refv.reverse();
         validate_root(&arr.root, &refv);
-
-        let ratio = mem_ratio(8, arr.footprint(), arr.len());
-        assert!(
-            ratio < 100.0,
-            "n:{} footprint:{} ratio:{}",
-            arr.len(),
-            arr.footprint(),
-            ratio
-        );
         validate(&arr, &refv);
     }
 }
@@ -130,15 +113,6 @@ fn test_delete_skew() {
     }
 
     validate(&arr, &refv);
-
-    let ratio = mem_ratio(8, arr.footprint(), arr.len());
-    assert!(
-        ratio < 100.0,
-        "n:{} footprint:{} ratio:{}",
-        arr.len(),
-        arr.footprint(),
-        ratio
-    );
 }
 
 #[test]
@@ -150,29 +124,23 @@ fn test_from_slice() {
     let vals: Vec<u64> = (0..1000_000).map(|_| rng.gen()).collect();
     let arr = Vector::from_slice(&vals, None);
     validate(&arr, &vals);
-
-    let ratio = mem_ratio(8, arr.footprint(), arr.len());
-    assert!(
-        ratio < 100.0,
-        "n:{} footprint:{} ratio:{}",
-        arr.len(),
-        arr.footprint(),
-        ratio
-    );
 }
 
-fn validate<T>(r: &Vector<T>, refv: &[T])
+fn validate<T>(arr: &Vector<T>, refv: &[T])
 where
     T: fmt::Debug + Clone + Eq + PartialEq,
 {
-    assert_eq!(refv.len(), r.len());
-    assert_eq!(r.len(), r.root.len());
+    let k = std::mem::size_of::<T>();
+    validate_mem_ratio(k, arr.footprint(), arr.len());
+
+    assert_eq!(refv.len(), arr.len());
+    assert_eq!(arr.len(), arr.root.len());
 
     for (off, val) in refv.iter().enumerate() {
-        assert_eq!(r.get(off).unwrap(), val, "off-{}", off);
+        assert_eq!(arr.get(off).unwrap(), val, "off-{}", off);
     }
 
-    assert!(r.get(r.len()).is_err());
+    assert!(arr.get(arr.len()).is_err());
 }
 
 fn validate_root<T>(root: &NodeRef<T>, refv: &[T])
@@ -195,16 +163,20 @@ where
     assert_eq!(data, refv);
 }
 
-fn mem_ratio(size: usize, mem: usize, n: usize) -> f64 {
+fn validate_mem_ratio(k: usize, mem: usize, n: usize) {
     match n {
-        0 => {
-            assert!(mem < 100, "{}", mem);
-            0.1
+        0 => assert!(mem < 100, "n:{} footp:{}", n, mem),
+        n if n < 100 => assert!(mem < 3000, "n:{} footp:{}", n, mem),
+        n => {
+            let k = k as f64;
+            let ratio = ((((mem as f64) / (n as f64)) - k) / k) * 100.0;
+            assert!(
+                (ratio < 100.0) || (n < 100),
+                "n:{} footp:{} ratio:{}",
+                n,
+                mem,
+                ratio,
+            );
         }
-        n if n < 10 => {
-            assert!(mem < ((10 * size) + 100), "{}", mem);
-            0.1
-        }
-        n => ((((mem as f64) / (n as f64)) - (size as f64)) / size as f64) * 100_f64,
     }
 }

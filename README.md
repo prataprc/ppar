@@ -26,8 +26,8 @@ find good alternatives please add it to the list and raise a PR.
 
 If you are planning to use `ppar` for your project, do let us know.
 
-Stated goals
-------------
+Goals
+-----
 
 - [x] Vector parametrized over type T.
 - [x] Immutable / Persistent collection of Vector<T>.
@@ -63,8 +63,10 @@ Contributions
 -------------
 
 * Simple workflow. Fork, modify and raise a pull request.
+* Use [rust-fuzz](https://rust-fuzz.github.io/book) for fuzz-testing.
+  * TODO: run test.sh (unit-testing, unit-benchmarks, fuzz-testing).
+  * TODO: run perf.sh
 * TODO: Developer certificate of origin.
-* TODO: cargo make.
 
 Benchmark
 ---------

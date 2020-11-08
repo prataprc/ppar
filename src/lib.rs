@@ -7,6 +7,11 @@
 //! to rope structure, as a tuple of (*weight*, *left*, *right*) where weight
 //! is the sum of all items present in the leaf-nodes under the left-branch.
 //!
+//! Ownership and Cloning
+//! =====================
+//!
+//! todo!(), also describe api to do in-place mutation.
+//!
 //! Thread Safety
 //! =============
 //!
@@ -22,11 +27,64 @@
 
 use std::{error, fmt, result};
 
-#[macro_use]
-mod util;
-mod ppar;
+/// Short form to compose Error values.
+///
+/// Here are few possible ways:
+///
+/// ```ignore
+/// use crate::Error;
+/// err_at!(Error::Invalid(String::default(), "bad argument"));
+/// ```
+///
+/// ```ignore
+/// use crate::Error;
+/// err_at!(Invalid, msg: format!("bad argument"));
+/// ```
+///
+/// ```ignore
+/// use crate::Error;
+/// err_at!(Invalid, std::io::read(buf));
+/// ```
+///
+/// ```ignore
+/// use crate::Error;
+/// err_at!(Invalid, std::fs::read(file_path), format!("read failed"));
+/// ```
+///
+macro_rules! err_at {
+    ($v:ident, msg: $($arg:expr),+) => {{
+        let prefix = format!("{}:{}", file!(), line!());
+        Err(Error::$v(prefix, format!($($arg),+)))
+    }};
+    ($v:ident, $e:expr) => {{
+        match $e {
+            Ok(val) => Ok(val),
+            Err(err) => {
+                let prefix = format!("{}:{}", file!(), line!());
+                Err(Error::$v(prefix, format!("{}", err)))
+            }
+        }
+    }};
+    ($v:ident, $e:expr, $($arg:expr),+) => {{
+        match $e {
+            Ok(val) => Ok(val),
+            Err(err) => {
+                let prefix = format!("{}:{}", file!(), line!());
+                let msg = format!($($arg),+);
+                Err(Error::$v(prefix, format!("{} {}", err, msg)));
+            }
+        }
+    }};
+}
 
-pub use crate::ppar::Vector;
+mod arc;
+pub mod rc;
+
+pub use crate::arc::Vector;
+
+/// Leaf node shall not exceed this default size, refer
+/// [Vector::set_leaf_size] for optimal configuration.
+pub const LEAF_CAP: usize = 10 * 1024; // in bytes.
 
 /// Type alias for Result return type, used by this package.
 pub type Result<T> = result::Result<T, Error>;

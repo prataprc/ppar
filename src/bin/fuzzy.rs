@@ -31,6 +31,9 @@ pub struct Opt {
     #[structopt(long = "threads", default_value = "4")]
     threads: usize,
 
+    #[structopt(long = "rc", default_value = "false")]
+    rc: bool,
+
     #[structopt(long = "leaf-size")]
     leaf_size: Option<usize>,
 }
