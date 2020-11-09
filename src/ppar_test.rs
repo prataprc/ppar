@@ -37,7 +37,7 @@ fn test_crud() {
 
                     refv[off] = val;
                     let n = arr.len();
-                    arr.set(off, val).unwrap();
+                    arr.update(off, val).unwrap();
                     assert_eq!(arr.len(), n);
                 }
                 // delete
@@ -175,7 +175,7 @@ fn validate_root<T>(root: &NodeRef<T>, refv: &[T])
 where
     T: fmt::Debug + Clone + Eq + PartialEq,
 {
-    let data = Node::collect_zs(root)
+    let data = Node::collect_leaf_nodes(root)
         .into_iter()
         .map(|n| {
             if let Node::Z { data } = n.as_ref() {

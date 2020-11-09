@@ -31,8 +31,8 @@ where
 {
     fn arbitrary(u: &mut arbitrary::unstructured::Unstructured) -> arbitrary::Result<Self> {
         let k = std::mem::size_of::<T>();
-        let leaf_cap = u.choose(&[k, k * 2, k * 100, k * 1000, k * 10000])?.clone();
-        let auto_reb = u.choose(&[true, false])?.clone(); // auto_rebalance
+        let leaf_cap = *u.choose(&[k, k * 2, k * 100, k * 1000, k * 10000])?;
+        let auto_reb = *u.choose(&[true, false])?; // auto_rebalance
 
         let arr: Vec<T> = u.arbitrary()?;
         let mut arr = Vector::from_slice(&arr, Some(leaf_cap));
@@ -65,12 +65,9 @@ where
 {
     /// Create a new empty Vector.
     pub fn new() -> Vector<T> {
-        let root = Node::Z {
-            data: Vec::default(),
-        };
         Vector {
             len: 0,
-            root: NodeRef::new(root),
+            root: Node::empty_leaf(),
             auto_rebalance: true,
             leaf_cap: crate::LEAF_CAP,
         }
@@ -87,10 +84,12 @@ where
             .chunks(n)
             .map(|x| NodeRef::new(Node::from(x)))
             .collect();
+
         let depth = (zs.len() as f64).log2().ceil() as usize;
         let mut iter = zs.into_iter();
         let item = iter.next();
         let (root, _) = Node::build_bottoms_up(depth, item, &mut iter);
+
         assert!(iter.next().is_none());
 
         Vector {
@@ -140,26 +139,27 @@ where
     /// Return a reference to the element at that position or `IndexFail` error
     /// if out of bounds.
     pub fn get(&self, index: usize) -> Result<&T> {
-        let val = if index < self.len {
-            self.root.get(index)
+        if index < self.len {
+            Ok(self.root.get(index))
         } else {
             err_at!(IndexFail, msg: "index {} out of bounds", index)?
-        };
-
-        Ok(val)
+        }
     }
 
     /// Insert an element at `off` position within the vector, or `IndexFail`
-    /// error if out of bounds.
+    /// error if out of bounds. Call this for copy-on-write insert, especially
+    /// when `Vector` is shared among multiple owners. In cases of
+    /// single-ownership use `insert_mut`, which does in-place mutation, for
+    /// better performance.
     pub fn insert(&mut self, off: usize, value: T) -> Result<()>
     where
         T: Clone,
     {
-        let rn = Rebalance::new(self);
         let (root, _) = if off <= self.len {
+            let rn = Rebalance::new(self);
             self.root.insert(off, value, &rn)?
         } else {
-            err_at!(IndexFail, msg: "offset {} out of bounds", off)?
+            err_at!(IndexFail, msg: "index {} out of bounds", off)?
         };
 
         self.root = root;
@@ -168,14 +168,43 @@ where
         Ok(())
     }
 
+    /// Insert an element at `off` position within the vector, or `IndexFail`
+    /// error if out of bounds. Call this for in-place insert and only when
+    /// `Vector` is under single ownership. In cases of shared-ownership
+    /// use `insert` api which does copy-on-write.
+    pub fn insert_mut(&mut self, off: usize, value: T) -> Result<()>
+    where
+        T: Clone,
+    {
+        if off <= self.len {
+            let rn = Rebalance::new(self);
+
+            let depth = NodeRef::get_mut(&mut self.root)
+                .unwrap()
+                .insert_mut(off, value, &rn)?;
+
+            let (root, _) = Node::auto_rebalance(NodeRef::clone(&self.root), depth, false, &rn)?;
+            self.root = root;
+        } else {
+            err_at!(IndexFail, msg: "index {} out of bounds", off)?;
+        };
+
+        self.len += 1;
+
+        Ok(())
+    }
+
     /// Update the element at `off` position within the vector, or `IndexFail`
-    /// error if out of bounds.
-    pub fn set(&mut self, off: usize, value: T) -> Result<T>
+    /// error if out of bounds. Call this for copy-on-write update, especially
+    /// when `Vector` is shared among multiple owners. In cases of
+    /// single-ownership use `update_mut`, which does in-place mutation, for
+    /// better performance.
+    pub fn update(&mut self, off: usize, value: T) -> Result<T>
     where
         T: Clone,
     {
         let (root, val) = if off < self.len {
-            self.root.set(off, value)
+            self.root.update(off, value)
         } else {
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
@@ -184,8 +213,28 @@ where
         Ok(val)
     }
 
+    /// Update an element at `off` position within the vector, or `IndexFail`
+    /// error if out of bounds. Call this for in-place update and only when
+    /// `Vector` is under single ownership. In cases of shared-ownership
+    /// use `update` api which does copy-on-write.
+    pub fn update_mut(&mut self, off: usize, value: T) -> Result<T>
+    where
+        T: Clone,
+    {
+        if off < self.len {
+            Ok(NodeRef::get_mut(&mut self.root)
+                .unwrap()
+                .update_mut(off, value))
+        } else {
+            err_at!(IndexFail, msg: "offset {} out of bounds", off)
+        }
+    }
+
     /// Remove and return the element at `off` position within the vector,
-    /// or `IndexFail` error if out of bounds.
+    /// or `IndexFail` error if out of bounds. Call this for copy-on-write
+    /// remove, especially when `Vector` is shared among multiple owners.
+    /// In cases of single-ownership use `remove_mut`, which does in-place
+    /// mutation, for better performance.
     pub fn remove(&mut self, off: usize) -> Result<T>
     where
         T: Clone,
@@ -201,6 +250,25 @@ where
         Ok(val)
     }
 
+    /// Remove and return the element at `off` position within the vector,
+    /// or `IndexFail` error if out of bounds. Call this for in-place update
+    /// and only when `Vector` is under single ownership. In cases of
+    /// shared-ownership use `remove` api which does copy-on-write.
+    pub fn remove_mut(&mut self, off: usize) -> Result<T>
+    where
+        T: Clone,
+    {
+        let val = if off < self.len {
+            NodeRef::get_mut(&mut self.root).unwrap().remove_mut(off)
+        } else {
+            err_at!(IndexFail, msg: "offset {} out of bounds", off)?
+        };
+
+        self.len -= 1;
+        Ok(val)
+    }
+
+    /// Return an iterator over each element in Vector.
     pub fn iter(&self) -> Iter<T> {
         Iter::new(&self.root)
     }
@@ -266,6 +334,12 @@ where
         })
     }
 
+    fn empty_leaf() -> NodeRef<T> {
+        NodeRef::new(Node::Z {
+            data: Vec::default(),
+        })
+    }
+
     fn len(&self) -> usize {
         match self {
             Node::M { weight, right, .. } => weight + right.len(),
@@ -276,14 +350,8 @@ where
     fn footprint(&self) -> usize {
         let n = mem::size_of_val(self);
         n + match self {
-            Node::Z { data } => {
-                // println!("fp-leaf {} {}", data.len(), data.capacity());
-                data.capacity() * mem::size_of::<T>()
-            }
-            Node::M { left, right, .. } => {
-                // println!("fp-intr");
-                left.footprint() + right.footprint()
-            }
+            Node::Z { data } => data.capacity() * mem::size_of::<T>(),
+            Node::M { left, right, .. } => left.footprint() + right.footprint(),
         }
     }
 
@@ -331,7 +399,40 @@ where
         Ok((node, depth))
     }
 
-    fn set(&self, off: usize, value: T) -> (NodeRef<T>, T)
+    fn insert_mut(&mut self, off: usize, val: T, rn: &Rebalance) -> Result<usize>
+    where
+        T: Clone,
+    {
+        let depth = match self {
+            Node::M {
+                weight,
+                left,
+                right,
+            } => {
+                if off < *weight {
+                    let depth = NodeRef::get_mut(left).unwrap().insert_mut(off, val, rn)?;
+                    *weight += 1;
+                    depth
+                } else {
+                    let off = off - *weight;
+                    NodeRef::get_mut(right).unwrap().insert_mut(off, val, rn)?
+                }
+            }
+            Node::Z { data } if data.len() < max_leaf_items::<T>(rn.leaf_cap) => {
+                data.insert(off, val);
+                1
+            }
+            Node::Z { data } => {
+                *self = NodeRef::try_unwrap(Self::split_insert(data, off, val))
+                    .ok()
+                    .unwrap();
+                2
+            }
+        };
+        Ok(depth)
+    }
+
+    fn update(&self, off: usize, value: T) -> (NodeRef<T>, T)
     where
         T: Clone,
     {
@@ -341,7 +442,7 @@ where
                 left,
                 right,
             } if off < *weight => {
-                let (left, old) = left.set(off, value);
+                let (left, old) = left.update(off, value);
                 (Node::newm(left, NodeRef::clone(right), *weight), old)
             }
             Node::M {
@@ -349,7 +450,7 @@ where
                 left,
                 right,
             } => {
-                let (right, old) = right.set(off - *weight, value);
+                let (right, old) = right.update(off - *weight, value);
                 (Node::newm(NodeRef::clone(left), right, *weight), old)
             }
             Node::Z { data } => {
@@ -358,6 +459,25 @@ where
                 let mut data = data.to_vec();
                 data[off] = value;
                 (NodeRef::new(Node::Z { data }), old)
+            }
+        }
+    }
+
+    fn update_mut(&mut self, off: usize, value: T) -> T
+    where
+        T: Clone,
+    {
+        match self {
+            Node::M { weight, left, .. } if off < *weight => {
+                NodeRef::get_mut(left).unwrap().update_mut(off, value)
+            }
+            Node::M { weight, right, .. } => NodeRef::get_mut(right)
+                .unwrap()
+                .update_mut(off - *weight, value),
+            Node::Z { data } => {
+                let old = data[off].clone();
+                data[off] = value;
+                old
             }
         }
     }
@@ -387,6 +507,34 @@ where
                 let mut ndata = data[..off].to_vec();
                 ndata.extend_from_slice(&data[(off + 1)..]);
                 (NodeRef::new(Node::Z { data: ndata }), old)
+            }
+        }
+    }
+
+    fn remove_mut(&mut self, off: usize) -> T
+    where
+        T: Clone,
+    {
+        match self {
+            Node::M {
+                weight,
+                left,
+                right,
+            } => {
+                if off < *weight {
+                    *weight -= 1;
+                    NodeRef::get_mut(left).unwrap().remove_mut(off)
+                } else {
+                    NodeRef::get_mut(right).unwrap().remove_mut(off - *weight)
+                }
+            }
+            Node::Z { data } => {
+                let old = data[off].clone();
+                data.remove(off);
+                if (data.len() * 2) < data.capacity() {
+                    data.shrink_to_fit()
+                }
+                old
             }
         }
     }
@@ -436,7 +584,7 @@ where
         match doit {
             false => Ok((node, depth)),
             true => {
-                let zs = Self::collect_zs(&node);
+                let zs = Self::collect_leaf_nodes(&node);
                 let depth = (zs.len() as f64).log2().ceil() as usize;
                 let mut iter = zs.into_iter();
                 let item = iter.next();
@@ -447,7 +595,7 @@ where
         }
     }
 
-    fn collect_zs(root: &NodeRef<T>) -> Vec<NodeRef<T>> {
+    fn collect_leaf_nodes(root: &NodeRef<T>) -> Vec<NodeRef<T>> {
         let (mut stack, mut acc) = (vec![], vec![]);
         let mut node = root;
         loop {
@@ -494,11 +642,11 @@ where
         (root, n)
     }
 
-    fn build_iter_stack<'a, 'b>(&'a self, iter: &'b mut Iter<'a, T>) {
-        match self {
+    fn build_iter_stack<'a, 'b>(node: &'a Node<T>, iter: &'b mut Iter<'a, T>) {
+        match node {
             Node::M { left, right, .. } => {
                 iter.stack.push(&right);
-                left.build_iter_stack(iter);
+                Self::build_iter_stack(left, iter);
             }
             node @ Node::Z { .. } => {
                 iter.node = Some(node);
@@ -539,11 +687,6 @@ where
     }
 }
 
-fn max_leaf_items<T>(cap: usize) -> usize {
-    let s = mem::size_of::<T>();
-    (cap / s) + 1
-}
-
 struct Rebalance {
     n_leafs: f64,
     auto_rebalance: bool,
@@ -582,7 +725,7 @@ impl<'a, T> Iter<'a, T> {
             node: None,
             off: 0,
         };
-        root.build_iter_stack(&mut iter);
+        Node::build_iter_stack(root, &mut iter);
         iter
     }
 }
@@ -600,7 +743,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
             Some(Node::Z { .. }) | None => match self.stack.pop() {
                 Some(node) => {
                     self.off = 0;
-                    node.build_iter_stack(self);
+                    Node::build_iter_stack(node, self);
                     self.next()
                 }
                 None => None,
@@ -640,6 +783,11 @@ where
             Some(_) => unreachable!(),
         }
     }
+}
+
+fn max_leaf_items<T>(cap: usize) -> usize {
+    let s = mem::size_of::<T>();
+    (cap / s) + 1
 }
 
 #[cfg(feature = "fuzzing")]
