@@ -24,6 +24,25 @@ impl<T> Clone for Vector<T> {
     }
 }
 
+impl<T> From<Vector<T>> for Vec<T>
+where
+    T: Clone,
+{
+    fn from(val: Vector<T>) -> Vec<T> {
+        let mut arr = vec![];
+
+        let root = NodeRef::clone(&val.root);
+        for leaf in Node::collect_leaf_nodes(root) {
+            match leaf.borrow() {
+                Node::Z { data } => arr.extend_from_slice(data),
+                _ => unreachable!(),
+            }
+        }
+
+        arr
+    }
+}
+
 #[cfg(any(feature = "arbitrary", feature = "fuzzing", test))]
 impl<T> arbitrary::Arbitrary for Vector<T>
 where
@@ -185,13 +204,11 @@ where
 
             let (root, _) = Node::auto_rebalance(NodeRef::clone(&self.root), depth, false, &rn)?;
             self.root = root;
+            self.len += 1;
+            Ok(())
         } else {
-            err_at!(IndexFail, msg: "index {} out of bounds", off)?;
-        };
-
-        self.len += 1;
-
-        Ok(())
+            err_at!(IndexFail, msg: "index {} out of bounds", off)?
+        }
     }
 
     /// Update the element at `off` position within the vector, or `IndexFail`
@@ -561,12 +578,10 @@ where
                 w
             }
         };
-        let left = NodeRef::new(Node::Z { data: ld });
-        let right = NodeRef::new(Node::Z { data: rd });
         NodeRef::new(Node::M {
             weight,
-            left,
-            right,
+            left: NodeRef::new(Node::Z { data: ld }),
+            right: NodeRef::new(Node::Z { data: rd }),
         })
     }
 
@@ -584,7 +599,7 @@ where
         match doit {
             false => Ok((node, depth)),
             true => {
-                let zs = Self::collect_leaf_nodes(&node);
+                let zs = Node::collect_leaf_nodes(node);
                 let depth = (zs.len() as f64).log2().ceil() as usize;
                 let mut iter = zs.into_iter();
                 let item = iter.next();
@@ -595,7 +610,7 @@ where
         }
     }
 
-    fn collect_leaf_nodes(root: &NodeRef<T>) -> Vec<NodeRef<T>> {
+    fn collect_leaf_nodes(root: NodeRef<T>) -> Vec<NodeRef<T>> {
         let (mut stack, mut acc) = (vec![], vec![]);
         let mut node = root;
         loop {
@@ -609,8 +624,8 @@ where
                     node = stack.pop().unwrap();
                 }
                 Node::M { left, right, .. } => {
-                    stack.push(right);
-                    node = left;
+                    stack.push(NodeRef::clone(right));
+                    node = NodeRef::clone(left);
                 }
             }
         }
@@ -788,6 +803,43 @@ where
 fn max_leaf_items<T>(cap: usize) -> usize {
     let s = mem::size_of::<T>();
     (cap / s) + 1
+}
+
+#[cfg(any(feature = "fuzzing", test))]
+pub fn validate<T>(arr: &Vector<T>, refv: &[T])
+where
+    T: std::fmt::Debug + Clone + Eq + PartialEq,
+{
+    let k = std::mem::size_of::<T>();
+    validate_mem_ratio(k, arr.footprint(), arr.len());
+
+    assert_eq!(refv.len(), arr.len());
+    assert_eq!(arr.len(), arr.root.len());
+
+    for (off, val) in refv.iter().enumerate() {
+        assert_eq!(arr.get(off).unwrap(), val, "off-{}", off);
+    }
+
+    assert!(arr.get(arr.len()).is_err());
+}
+
+#[cfg(any(feature = "fuzzing", test))]
+pub fn validate_mem_ratio(k: usize, mem: usize, n: usize) {
+    match n {
+        0 => assert!(mem < 100, "n:{} footp:{}", n, mem),
+        n if n < 100 => assert!(mem < 3000, "n:{} footp:{}", n, mem),
+        n => {
+            let k = k as f64;
+            let ratio = ((((mem as f64) / (n as f64)) - k) / k) * 100.0;
+            assert!(
+                (ratio < 100.0) || (n < 100),
+                "n:{} footp:{} ratio:{}",
+                n,
+                mem,
+                ratio,
+            );
+        }
+    }
 }
 
 #[cfg(feature = "fuzzing")]

@@ -1,7 +1,5 @@
 use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
 
-use std::fmt;
-
 use super::*;
 
 #[test]
@@ -85,7 +83,6 @@ fn test_prepend() {
         }
 
         refv.reverse();
-        validate_root(&arr.root, &refv);
         validate(&arr, &refv);
     }
 }
@@ -152,59 +149,4 @@ fn test_into_iter() {
 
     println!("{:?}", iter_vals);
     assert_eq!(vals, iter_vals);
-}
-
-fn validate<T>(arr: &Vector<T>, refv: &[T])
-where
-    T: fmt::Debug + Clone + Eq + PartialEq,
-{
-    let k = std::mem::size_of::<T>();
-    validate_mem_ratio(k, arr.footprint(), arr.len());
-
-    assert_eq!(refv.len(), arr.len());
-    assert_eq!(arr.len(), arr.root.len());
-
-    for (off, val) in refv.iter().enumerate() {
-        assert_eq!(arr.get(off).unwrap(), val, "off-{}", off);
-    }
-
-    assert!(arr.get(arr.len()).is_err());
-}
-
-fn validate_root<T>(root: &NodeRef<T>, refv: &[T])
-where
-    T: fmt::Debug + Clone + Eq + PartialEq,
-{
-    let data = Node::collect_leaf_nodes(root)
-        .into_iter()
-        .map(|n| {
-            if let Node::Z { data } = n.as_ref() {
-                data.to_vec()
-            } else {
-                panic!()
-            }
-        })
-        .flatten()
-        .collect::<Vec<T>>();
-
-    assert_eq!(data.len(), refv.len());
-    assert_eq!(data, refv);
-}
-
-fn validate_mem_ratio(k: usize, mem: usize, n: usize) {
-    match n {
-        0 => assert!(mem < 100, "n:{} footp:{}", n, mem),
-        n if n < 100 => assert!(mem < 3000, "n:{} footp:{}", n, mem),
-        n => {
-            let k = k as f64;
-            let ratio = ((((mem as f64) / (n as f64)) - k) / k) * 100.0;
-            assert!(
-                (ratio < 100.0) || (n < 100),
-                "n:{} footp:{} ratio:{}",
-                n,
-                mem,
-                ratio,
-            );
-        }
-    }
 }
