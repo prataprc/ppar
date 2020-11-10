@@ -10,7 +10,7 @@
 //! Ownership and Cloning
 //! =====================
 //!
-//! Cloning [Vector] and [rc::Vector] is cheap, it creates a shared ownership
+//! Cloning `arc::Vector` and `rc::Vector` is cheap, it creates a shared ownership
 //! of the underlying tree. This is great for applications requiring
 //! shared-ownership, but at the cost of copy-on-write for every mutation in
 //! the Vector, like insert, remove, delete. For applications requiring only
@@ -22,11 +22,12 @@
 //! Thread Safety
 //! =============
 //!
-//! By default `Vector<T>` is thread safe through `Arc`. To trade-off
-//! thread-safety for performance use [rc::Vector] type, which is same as
-//! [Vector] type except for using [Rc] instead of [Arc] for shared ownership.
-//! That is, `Send` and `Sync` traits are not available for [rc::Vector] type
-//! while it is available for [Vector] type.
+//! `arc::Vector<T>` is thread safe through `Arc`. To trade-off
+//! thread-safety for performance use `rc::Vector` type, which is same as
+//! `arc::Vector` type except for using `std::rc::Rc` instead of
+//! `std::sync::Arc` for shared ownership. That is, `Send` and `Sync`
+//! traits are not available for `rc::Vector` type while it is available
+//! for `arc::Vector` type.
 //!
 //! **Alternate libraries**:
 //!
@@ -85,10 +86,8 @@ macro_rules! err_at {
     }};
 }
 
-mod arc;
+pub mod arc;
 pub mod rc;
-
-pub use crate::arc::Vector;
 
 /// Leaf node shall not exceed this default size, refer
 /// [Vector::set_leaf_size] for optimal configuration.

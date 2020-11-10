@@ -1,14 +1,15 @@
 use std::{borrow::Borrow, mem};
 
+use super::*;
 use crate::{Error, Result};
 
-/// Persistent array, that can also be used as mutable vector.
+/// Persistent array using rope-data-structure.
 pub struct Vector<T>
 where
     T: Sized,
 {
     len: usize,
-    root: NodeRef<T>,
+    root: Ref<Node<T>>,
     auto_rebalance: bool,
     leaf_cap: usize,
 }
@@ -17,7 +18,7 @@ impl<T> Clone for Vector<T> {
     fn clone(&self) -> Vector<T> {
         Vector {
             len: self.len,
-            root: NodeRef::clone(&self.root),
+            root: Ref::clone(&self.root),
             auto_rebalance: self.auto_rebalance,
             leaf_cap: self.leaf_cap,
         }
@@ -31,7 +32,7 @@ where
     fn from(val: Vector<T>) -> Vec<T> {
         let mut arr = vec![];
 
-        let root = NodeRef::clone(&val.root);
+        let root = Ref::clone(&val.root);
         for leaf in Node::collect_leaf_nodes(root) {
             match leaf.borrow() {
                 Node::Z { data } => arr.extend_from_slice(data),
@@ -99,10 +100,7 @@ where
     {
         let n = max_leaf_items::<T>(leaf_node_size.unwrap_or(crate::LEAF_CAP));
 
-        let zs: Vec<NodeRef<T>> = slice
-            .chunks(n)
-            .map(|x| NodeRef::new(Node::from(x)))
-            .collect();
+        let zs: Vec<Ref<Node<T>>> = slice.chunks(n).map(|x| Ref::new(Node::from(x))).collect();
 
         let depth = (zs.len() as f64).log2().ceil() as usize;
         let mut iter = zs.into_iter();
@@ -200,11 +198,11 @@ where
         if off <= self.len {
             let rn = Rebalance::new(self);
 
-            let depth = NodeRef::get_mut(&mut self.root)
+            let depth = Ref::get_mut(&mut self.root)
                 .unwrap()
                 .insert_mut(off, value, &rn)?;
 
-            let (root, _) = Node::auto_rebalance(NodeRef::clone(&self.root), depth, false, &rn)?;
+            let (root, _) = Node::auto_rebalance(Ref::clone(&self.root), depth, false, &rn)?;
             self.root = root;
             self.len += 1;
             Ok(())
@@ -243,9 +241,7 @@ where
         T: Clone,
     {
         if off < self.len {
-            Ok(NodeRef::get_mut(&mut self.root)
-                .unwrap()
-                .update_mut(off, value))
+            Ok(Ref::get_mut(&mut self.root).unwrap().update_mut(off, value))
         } else {
             err_at!(IndexFail, msg: "offset {} out of bounds", off)
         }
@@ -282,7 +278,7 @@ where
         T: Clone,
     {
         let val = if off < self.len {
-            NodeRef::get_mut(&mut self.root).unwrap().remove_mut(off)
+            Ref::get_mut(&mut self.root).unwrap().remove_mut(off)
         } else {
             err_at!(IndexFail, msg: "offset {} out of bounds", off)?
         };
@@ -339,8 +335,8 @@ where
         };
 
         let root = {
-            let left = NodeRef::clone(&self.root);
-            let right = NodeRef::clone(&other.root);
+            let left = Ref::clone(&self.root);
+            let right = Ref::clone(&other.root);
             Node::newm(left, right, self.len)
         };
         self.root = root;
@@ -350,7 +346,7 @@ where
     /// When auto-rebalance is disabled, use this method to rebalance the tree.
     pub fn rebalance(&self) -> Result<Self> {
         let rn = Rebalance::new(self);
-        let root = NodeRef::clone(&self.root);
+        let root = Ref::clone(&self.root);
         let (root, _) = Node::auto_rebalance(root, 0, true, &rn)?;
         let val = Vector {
             len: self.len,
@@ -365,7 +361,7 @@ where
     // the total number of nodes in the tree.
     #[cfg(feature = "fuzzing")]
     pub fn fetch_multiversions(&self) -> (Vec<*const u8>, usize) {
-        assert_eq!(strong_count(&self.root), 1);
+        assert_eq!(Ref::strong_count(&self.root), 1);
 
         let mut acc = vec![];
         let n = self.root.fetch_multiversions(&mut acc);
@@ -385,8 +381,8 @@ where
 {
     M {
         weight: usize,
-        left: NodeRef<T>,
-        right: NodeRef<T>,
+        left: Ref<Node<T>>,
+        right: Ref<Node<T>>,
     },
     Z {
         data: Vec<T>,
@@ -406,16 +402,16 @@ impl<T> Node<T>
 where
     T: Sized,
 {
-    fn newm(left: NodeRef<T>, right: NodeRef<T>, weight: usize) -> NodeRef<T> {
-        NodeRef::new(Node::M {
+    fn newm(left: Ref<Node<T>>, right: Ref<Node<T>>, weight: usize) -> Ref<Node<T>> {
+        Ref::new(Node::M {
             left,
             right,
             weight,
         })
     }
 
-    fn empty_leaf() -> NodeRef<T> {
-        NodeRef::new(Node::Z {
+    fn empty_leaf() -> Ref<Node<T>> {
+        Ref::new(Node::Z {
             data: Vec::default(),
         })
     }
@@ -444,7 +440,7 @@ where
     }
 
     // return (value, max_depth)
-    fn insert(&self, off: usize, val: T, rn: &Rebalance) -> Result<(NodeRef<T>, usize)>
+    fn insert(&self, off: usize, val: T, rn: &Rebalance) -> Result<(Ref<Node<T>>, usize)>
     where
         T: Clone,
     {
@@ -457,11 +453,11 @@ where
                 let weight = *weight;
                 let (weight, left, right, depth) = if off < weight {
                     let (left, depth) = left.insert(off, val, rn)?;
-                    (weight + 1, left, NodeRef::clone(right), depth)
+                    (weight + 1, left, Ref::clone(right), depth)
                 } else {
                     let off = off - weight;
                     let (right, depth) = right.insert(off, val, rn)?;
-                    (weight, NodeRef::clone(left), right, depth)
+                    (weight, Ref::clone(left), right, depth)
                 };
                 (Node::newm(left, right, weight), depth + 1)
             }
@@ -469,7 +465,7 @@ where
                 let mut ndata = data[..off].to_vec();
                 ndata.push(val);
                 ndata.extend_from_slice(&data[off..]);
-                (NodeRef::new(Node::Z { data: ndata }), 1)
+                (Ref::new(Node::Z { data: ndata }), 1)
             }
             Node::Z { data } => (Self::split_insert(data, off, val), 2),
         };
@@ -490,12 +486,12 @@ where
                 right,
             } => {
                 if off < *weight {
-                    let depth = NodeRef::get_mut(left).unwrap().insert_mut(off, val, rn)?;
+                    let depth = Ref::get_mut(left).unwrap().insert_mut(off, val, rn)?;
                     *weight += 1;
                     depth
                 } else {
                     let off = off - *weight;
-                    NodeRef::get_mut(right).unwrap().insert_mut(off, val, rn)?
+                    Ref::get_mut(right).unwrap().insert_mut(off, val, rn)?
                 }
             }
             Node::Z { data } if data.len() < max_leaf_items::<T>(rn.leaf_cap) => {
@@ -503,7 +499,7 @@ where
                 1
             }
             Node::Z { data } => {
-                *self = NodeRef::try_unwrap(Self::split_insert(data, off, val))
+                *self = Ref::try_unwrap(Self::split_insert(data, off, val))
                     .ok()
                     .unwrap();
                 2
@@ -512,7 +508,7 @@ where
         Ok(depth)
     }
 
-    fn update(&self, off: usize, value: T) -> (NodeRef<T>, T)
+    fn update(&self, off: usize, value: T) -> (Ref<Node<T>>, T)
     where
         T: Clone,
     {
@@ -523,7 +519,7 @@ where
                 right,
             } if off < *weight => {
                 let (left, old) = left.update(off, value);
-                (Node::newm(left, NodeRef::clone(right), *weight), old)
+                (Node::newm(left, Ref::clone(right), *weight), old)
             }
             Node::M {
                 weight,
@@ -531,14 +527,14 @@ where
                 right,
             } => {
                 let (right, old) = right.update(off - *weight, value);
-                (Node::newm(NodeRef::clone(left), right, *weight), old)
+                (Node::newm(Ref::clone(left), right, *weight), old)
             }
             Node::Z { data } => {
                 let old = data[off].clone();
 
                 let mut data = data.to_vec();
                 data[off] = value;
-                (NodeRef::new(Node::Z { data }), old)
+                (Ref::new(Node::Z { data }), old)
             }
         }
     }
@@ -549,9 +545,9 @@ where
     {
         match self {
             Node::M { weight, left, .. } if off < *weight => {
-                NodeRef::get_mut(left).unwrap().update_mut(off, value)
+                Ref::get_mut(left).unwrap().update_mut(off, value)
             }
-            Node::M { weight, right, .. } => NodeRef::get_mut(right)
+            Node::M { weight, right, .. } => Ref::get_mut(right)
                 .unwrap()
                 .update_mut(off - *weight, value),
             Node::Z { data } => {
@@ -562,7 +558,7 @@ where
         }
     }
 
-    fn remove(&self, off: usize) -> (NodeRef<T>, T)
+    fn remove(&self, off: usize) -> (Ref<Node<T>>, T)
     where
         T: Clone,
     {
@@ -575,10 +571,10 @@ where
                 let weight = *weight;
                 if off < weight {
                     let (left, old) = left.remove(off);
-                    (Node::newm(left, NodeRef::clone(right), weight - 1), old)
+                    (Node::newm(left, Ref::clone(right), weight - 1), old)
                 } else {
                     let (right, old) = right.remove(off - weight);
-                    (Node::newm(NodeRef::clone(left), right, weight), old)
+                    (Node::newm(Ref::clone(left), right, weight), old)
                 }
             }
             Node::Z { data } => {
@@ -586,7 +582,7 @@ where
 
                 let mut ndata = data[..off].to_vec();
                 ndata.extend_from_slice(&data[(off + 1)..]);
-                (NodeRef::new(Node::Z { data: ndata }), old)
+                (Ref::new(Node::Z { data: ndata }), old)
             }
         }
     }
@@ -603,9 +599,9 @@ where
             } => {
                 if off < *weight {
                     *weight -= 1;
-                    NodeRef::get_mut(left).unwrap().remove_mut(off)
+                    Ref::get_mut(left).unwrap().remove_mut(off)
                 } else {
-                    NodeRef::get_mut(right).unwrap().remove_mut(off - *weight)
+                    Ref::get_mut(right).unwrap().remove_mut(off - *weight)
                 }
             }
             Node::Z { data } => {
@@ -619,7 +615,7 @@ where
         }
     }
 
-    fn split_insert(data: &[T], off: usize, val: T) -> NodeRef<T>
+    fn split_insert(data: &[T], off: usize, val: T) -> Ref<Node<T>>
     where
         T: Clone,
     {
@@ -641,14 +637,14 @@ where
                 w
             }
         };
-        NodeRef::new(Node::M {
+        Ref::new(Node::M {
             weight,
-            left: NodeRef::new(Node::Z { data: ld }),
-            right: NodeRef::new(Node::Z { data: rd }),
+            left: Ref::new(Node::Z { data: ld }),
+            right: Ref::new(Node::Z { data: rd }),
         })
     }
 
-    fn split_off(&self, off: usize, len: usize) -> (NodeRef<T>, NodeRef<T>, usize)
+    fn split_off(&self, off: usize, len: usize) -> (Ref<Node<T>>, Ref<Node<T>>, usize)
     where
         T: Clone,
     {
@@ -659,7 +655,7 @@ where
                 weight,
             } if off < *weight => {
                 let (left, root, n) = left.split_off(off, *weight);
-                let root = Node::newm(root, NodeRef::clone(right), n);
+                let root = Node::newm(root, Ref::clone(right), n);
                 let node = Node::newm(left, Node::empty_leaf(), weight - n);
                 (node, root, n + (len - weight))
             }
@@ -669,21 +665,21 @@ where
                 weight,
             } => {
                 let (right, root, n) = right.split_off(off - weight, len - weight);
-                let node = Node::newm(NodeRef::clone(left), right, *weight);
+                let node = Node::newm(Ref::clone(left), right, *weight);
                 (node, root, n)
             }
             Node::Z { data } if off == 0 => {
                 let node = Node::empty_leaf();
-                let root = NodeRef::new(Node::Z {
+                let root = Ref::new(Node::Z {
                     data: data.to_vec(),
                 });
                 (node, root, data.len())
             }
             Node::Z { data } => {
-                let node = NodeRef::new(Node::Z {
+                let node = Ref::new(Node::Z {
                     data: data[..off].to_vec(),
                 });
-                let root = NodeRef::new(Node::Z {
+                let root = Ref::new(Node::Z {
                     data: data[off..].to_vec(),
                 });
                 (node, root, data[off..].len())
@@ -692,11 +688,11 @@ where
     }
 
     fn auto_rebalance(
-        node: NodeRef<T>,
+        node: Ref<Node<T>>,
         depth: usize,
         force: bool,
         rn: &Rebalance,
-    ) -> Result<(NodeRef<T>, usize)> {
+    ) -> Result<(Ref<Node<T>>, usize)> {
         let doit = {
             let b = force;
             b || (rn.auto_rebalance == true) && rn.can_rebalance(depth)
@@ -716,22 +712,22 @@ where
         }
     }
 
-    fn collect_leaf_nodes(root: NodeRef<T>) -> Vec<NodeRef<T>> {
+    fn collect_leaf_nodes(root: Ref<Node<T>>) -> Vec<Ref<Node<T>>> {
         let (mut stack, mut acc) = (vec![], vec![]);
         let mut node = root;
         loop {
             match node.borrow() {
                 Node::Z { .. } if stack.len() == 0 => {
-                    acc.push(NodeRef::clone(&node));
+                    acc.push(Ref::clone(&node));
                     break acc;
                 }
                 Node::Z { .. } => {
-                    acc.push(NodeRef::clone(&node));
+                    acc.push(Ref::clone(&node));
                     node = stack.pop().unwrap();
                 }
                 Node::M { left, right, .. } => {
-                    stack.push(NodeRef::clone(right));
-                    node = NodeRef::clone(left);
+                    stack.push(Ref::clone(right));
+                    node = Ref::clone(left);
                 }
             }
         }
@@ -739,11 +735,11 @@ where
 
     fn build_bottoms_up(
         depth: usize,
-        item: Option<NodeRef<T>>,
-        ziter: &mut impl Iterator<Item = NodeRef<T>>,
-    ) -> (NodeRef<T>, usize) {
+        item: Option<Ref<Node<T>>>,
+        ziter: &mut impl Iterator<Item = Ref<Node<T>>>,
+    ) -> (Ref<Node<T>>, usize) {
         let (root, n) = match (depth, item) {
-            (_, None) => (NodeRef::new(Node::Z { data: vec![] }), 0),
+            (_, None) => (Ref::new(Node::Z { data: vec![] }), 0),
             (0, Some(l)) => {
                 let n = l.len();
                 (l, n)
@@ -756,7 +752,7 @@ where
                     left,
                     right,
                 };
-                (NodeRef::new(node), weight + m)
+                (Ref::new(node), weight + m)
             }
         };
 
@@ -775,14 +771,14 @@ where
         }
     }
 
-    fn build_into_iter_stack(node: &NodeRef<T>, iter: &mut IntoIter<T>) {
+    fn build_into_iter_stack(node: &Ref<Node<T>>, iter: &mut IntoIter<T>) {
         match node.as_ref() {
             Node::M { left, right, .. } => {
-                iter.stack.push(NodeRef::clone(right));
+                iter.stack.push(Ref::clone(right));
                 Self::build_into_iter_stack(left, iter);
             }
             Node::Z { .. } => {
-                iter.node = Some(NodeRef::clone(node));
+                iter.node = Some(Ref::clone(node));
             }
         }
     }
@@ -792,13 +788,13 @@ where
     fn fetch_multiversions(&self, acc: &mut Vec<*const u8>) -> usize {
         match self {
             Node::M { left, right, .. } => {
-                if strong_count(left) > 1 {
-                    acc.push(as_ptr(left));
+                if Ref::strong_count(left) > 1 {
+                    acc.push(Ref::as_ptr(left));
                 }
                 let mut n = left.fetch_multiversions(acc);
 
-                if strong_count(right) > 1 {
-                    acc.push(as_ptr(right));
+                if Ref::strong_count(right) > 1 {
+                    acc.push(Ref::as_ptr(right));
                 }
                 n += right.fetch_multiversions(acc);
                 n + 1
@@ -853,6 +849,9 @@ impl Rebalance {
     }
 }
 
+/// An iterator for Vector.
+///
+/// Created by the iter method on Vector.
 pub struct Iter<'a, T> {
     stack: Vec<&'a Node<T>>,
     node: Option<&'a Node<T>>,
@@ -894,9 +893,13 @@ impl<'a, T> Iterator for Iter<'a, T> {
     }
 }
 
+/// An iterator that moves elements out of Vector.
+///
+/// Created by the into_iter method on Vector (provided by the
+/// IntoIterator trait).
 pub struct IntoIter<T> {
-    stack: Vec<NodeRef<T>>,
-    node: Option<NodeRef<T>>,
+    stack: Vec<Ref<Node<T>>>,
+    node: Option<Ref<Node<T>>>,
     off: usize,
 }
 

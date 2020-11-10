@@ -1,11 +1,10 @@
-//! Module implement thread-safe persistent array.
+//! Module implement persistent array, faster but not thread safe.
 
-use std::sync::Arc as Ref;
+use std::rc::Rc as Ref;
 
 #[path = "./ppar.rs"]
 mod ppar;
 
-/// Persistent array, thread-safe version.
 pub use self::ppar::Vector;
 pub use self::ppar::*;
 
@@ -15,6 +14,6 @@ where
 {
     /// Return whether this instance is thread-safe.
     pub fn is_thread_safe(&self) -> bool {
-        true
+        false
     }
 }
