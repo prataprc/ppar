@@ -191,6 +191,8 @@ where
     /// error if out of bounds. Call this for in-place insert and only when
     /// `Vector` is under single ownership. In cases of shared-ownership
     /// use `insert` api which does copy-on-write.
+    ///
+    /// **causes panic when used under shared-ownership**
     pub fn insert_mut(&mut self, off: usize, value: T) -> Result<()>
     where
         T: Clone,
@@ -234,6 +236,8 @@ where
     /// error if out of bounds. Call this for in-place update and only when
     /// `Vector` is under single ownership. In cases of shared-ownership
     /// use `update` api which does copy-on-write.
+    ///
+    /// **causes panic when used under shared-ownership**
     pub fn update_mut(&mut self, off: usize, value: T) -> Result<T>
     where
         T: Clone,
@@ -271,6 +275,8 @@ where
     /// or `IndexFail` error if out of bounds. Call this for in-place update
     /// and only when `Vector` is under single ownership. In cases of
     /// shared-ownership use `remove` api which does copy-on-write.
+    ///
+    /// **causes panic when used under shared-ownership**
     pub fn remove_mut(&mut self, off: usize) -> Result<T>
     where
         T: Clone,
@@ -288,6 +294,57 @@ where
     /// Return an iterator over each element in Vector.
     pub fn iter(&self) -> Iter<T> {
         Iter::new(&self.root)
+    }
+
+    /// Splits the collection into two at the given index.
+    ///
+    /// Returns a new Vector containing the elements in the range [at, len).
+    /// After the call, the original vector will be left containing the
+    /// elements [0, at) with its previous capacity unchanged.
+    ///
+    /// Call [Self::rebalance] on `self` and/or the returned vector to
+    /// make the vectors fully balanced.
+    pub fn split_off(&mut self, off: usize) -> Vector<T>
+    where
+        T: Clone,
+    {
+        if off >= self.len {
+            panic!("index {} out of bounds for len {}", off, self.len())
+        }
+
+        let (node, root, n) = self.root.split_off(off, self.len);
+        self.root = node;
+        self.len -= n;
+
+        Vector {
+            len: n,
+            root,
+            auto_rebalance: self.auto_rebalance,
+            leaf_cap: self.leaf_cap,
+        }
+    }
+
+    /// Join `other` Vector into this vector.
+    ///
+    /// Call [Self::rebalance] on `self` to make the vectors fully balanced.
+    pub fn append(&mut self, other: Vector<T>)
+    where
+        T: Clone,
+    {
+        let other = if other.leaf_cap != self.leaf_cap {
+            let arr: Vec<T> = other.into();
+            Vector::from_slice(&arr, Some(self.leaf_cap))
+        } else {
+            other
+        };
+
+        let root = {
+            let left = NodeRef::clone(&self.root);
+            let right = NodeRef::clone(&other.root);
+            Node::newm(left, right, self.len)
+        };
+        self.root = root;
+        self.len += other.len;
     }
 
     /// When auto-rebalance is disabled, use this method to rebalance the tree.
@@ -313,6 +370,12 @@ where
         let mut acc = vec![];
         let n = self.root.fetch_multiversions(&mut acc);
         (acc, n)
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    fn pretty_print(&self) {
+        self.root.pretty_print("".to_string(), self.len)
     }
 }
 
@@ -585,6 +648,49 @@ where
         })
     }
 
+    fn split_off(&self, off: usize, len: usize) -> (NodeRef<T>, NodeRef<T>, usize)
+    where
+        T: Clone,
+    {
+        match self {
+            Node::M {
+                left,
+                right,
+                weight,
+            } if off < *weight => {
+                let (left, root, n) = left.split_off(off, *weight);
+                let root = Node::newm(root, NodeRef::clone(right), n);
+                let node = Node::newm(left, Node::empty_leaf(), weight - n);
+                (node, root, n + (len - weight))
+            }
+            Node::M {
+                left,
+                right,
+                weight,
+            } => {
+                let (right, root, n) = right.split_off(off - weight, len - weight);
+                let node = Node::newm(NodeRef::clone(left), right, *weight);
+                (node, root, n)
+            }
+            Node::Z { data } if off == 0 => {
+                let node = Node::empty_leaf();
+                let root = NodeRef::new(Node::Z {
+                    data: data.to_vec(),
+                });
+                (node, root, data.len())
+            }
+            Node::Z { data } => {
+                let node = NodeRef::new(Node::Z {
+                    data: data[..off].to_vec(),
+                });
+                let root = NodeRef::new(Node::Z {
+                    data: data[off..].to_vec(),
+                });
+                (node, root, data[off..].len())
+            }
+        }
+    }
+
     fn auto_rebalance(
         node: NodeRef<T>,
         depth: usize,
@@ -698,6 +804,26 @@ where
                 n + 1
             }
             Node::Z { .. } => 1,
+        }
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    fn pretty_print(&self, mut prefix: String, len: usize) {
+        match self {
+            Node::M {
+                left,
+                right,
+                weight,
+            } => {
+                println!("{}nodem:{}", prefix, len);
+                prefix.push_str("  ");
+                left.pretty_print(prefix.clone(), *weight);
+                right.pretty_print(prefix, len - *weight);
+            }
+            Node::Z { data } => {
+                println!("{}nodez:{}", prefix, data.len());
+            }
         }
     }
 }
@@ -826,8 +952,11 @@ where
 #[cfg(any(feature = "fuzzing", test))]
 pub fn validate_mem_ratio(k: usize, mem: usize, n: usize) {
     match n {
-        0 => assert!(mem < 100, "n:{} footp:{}", n, mem),
-        n if n < 100 => assert!(mem < 3000, "n:{} footp:{}", n, mem),
+        0 => assert!(mem < 1000, "n:{} footp:{}", n, mem),
+        n if n < 200 => {
+            let cap = k * n * 3 + 1000;
+            assert!(mem < cap, "n:{} footp:{}", n, mem)
+        }
         n => {
             let k = k as f64;
             let ratio = ((((mem as f64) / (n as f64)) - k) / k) * 100.0;

@@ -21,7 +21,7 @@ To be more precise, intermediate nodes in the tree are organised similar
 to rope structure, as a tuple of `(weight, left, right)` where weight is
 the sum of all items present in the leaf-nodes under the left-branch.
 
-A list of alternatives can be found [here][#alternate-solutions]. If you
+A list of alternatives can be found [here][#Alternate-solutions]. If you
 find good alternatives please add it to the list and raise a PR.
 
 If you are planning to use `ppar` for your project, do let us know.

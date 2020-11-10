@@ -10,15 +10,23 @@
 //! Ownership and Cloning
 //! =====================
 //!
-//! todo!(), also describe api to do in-place mutation.
+//! Cloning [Vector] and [rc::Vector] is cheap, it creates a shared ownership
+//! of the underlying tree. This is great for applications requiring
+//! shared-ownership, but at the cost of copy-on-write for every mutation in
+//! the Vector, like insert, remove, delete. For applications requiring only
+//! single-ownership insert_mut, remove_mut, delete_mut gives better
+//! performance because the underlying tree is mutated in-place. To help decide
+//! what method to use when, methods that perform in-place mutation are
+//! suffixed with `_mut`.
 //!
 //! Thread Safety
 //! =============
 //!
 //! By default `Vector<T>` is thread safe through `Arc`. To trade-off
-//! thread-safety for performance, compile with `ppar-rc` feature, which uses
-//! `Rc` instead of `Arc`, that is, `Send` and `Sync` traits are not available
-//! for `Vector<T>`.
+//! thread-safety for performance use [rc::Vector] type, which is same as
+//! [Vector] type except for using [Rc] instead of [Arc] for shared ownership.
+//! That is, `Send` and `Sync` traits are not available for [rc::Vector] type
+//! while it is available for [Vector] type.
 //!
 //! **Alternate libraries**:
 //!
