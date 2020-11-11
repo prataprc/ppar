@@ -5,7 +5,7 @@ use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
 
 use test::Bencher;
 
-use ppar::Vector;
+use ppar::arc::Vector;
 
 #[bench]
 fn bench_prepend(b: &mut Bencher) {
@@ -65,7 +65,7 @@ fn bench_get_100K(b: &mut Bencher) {
 
 #[bench]
 #[allow(non_snake_case)]
-fn bench_set_100K(b: &mut Bencher) {
+fn bench_update_100K(b: &mut Bencher) {
     let seed: u128 = random();
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
     let mut arr: Vector<u64> = Vector::new();
@@ -75,11 +75,11 @@ fn bench_set_100K(b: &mut Bencher) {
     }
     b.iter(|| {
         let off = rng.gen::<usize>() % arr.len();
-        arr.set(off, rng.gen::<u64>()).unwrap();
+        arr.update(off, rng.gen::<u64>()).unwrap();
     });
 
     let ratio = mem_ratio(8, arr.footprint(), arr.len());
-    println!("bench_set_100K n:{} mem_ratio:{}%", arr.len(), ratio);
+    println!("bench_update_100K n:{} mem_ratio:{}%", arr.len(), ratio);
 }
 
 #[bench]
