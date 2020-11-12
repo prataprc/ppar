@@ -2,15 +2,6 @@ use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
 
 use super::*;
 
-// into_iter
-// iter
-// from_slice
-// from_vec
-// auto_rebalance, manual re-balance
-// insert, insert_mut, remove, remove_mut, update, update_mut, get
-// len
-// split_off, append, sort
-
 #[test]
 fn test_new() {
     let arr: Vector<u64> = Vector::new();
@@ -116,7 +107,7 @@ fn test_split_off() {
         while arr.len() > 0 {
             let off = rng.gen::<usize>() % arr.len();
             // println!("test_split_off off:{} len:{}", off, arr.len());
-            let (a, b) = (arr.split_off(off), refv.split_off(off));
+            let (a, b) = (arr.split_off(off).unwrap(), refv.split_off(off));
             arr = arr.rebalance().unwrap();
             validate(&a, &b);
             validate(&arr, &refv);
@@ -242,4 +233,25 @@ fn test_into_iter() {
 
     println!("{:?}", iter_vals);
     assert_eq!(vals, iter_vals);
+}
+
+#[test]
+fn test_rebalance() {
+    let seed: u128 = random();
+    println!("test_rebalance seed {}", seed);
+    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+
+    let mut arr = Vector::new();
+    let mut refv: Vec<u64> = vec![];
+
+    for _i in 0..10_000 {
+        arr = arr.rebalance().unwrap();
+
+        let val = rng.gen::<u64>();
+        refv.push(val);
+        arr.insert(0, val).unwrap();
+    }
+
+    refv.reverse();
+    validate(&arr, &refv);
 }

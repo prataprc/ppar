@@ -53,10 +53,10 @@ where
         let k = std::mem::size_of::<T>();
         let leaf_cap = *u.choose(&[k, k * 2, k * 100, k * 1000, k * 10000])?;
         let auto_reb = *u.choose(&[true, false])?; // auto_rebalance
-
         let arr: Vec<T> = u.arbitrary()?;
         let mut arr = Vector::from_slice(&arr, Some(leaf_cap));
         arr.set_auto_rebalance(auto_reb);
+
         Ok(arr)
     }
 }
@@ -100,14 +100,13 @@ where
     {
         let n = max_leaf_items::<T>(leaf_node_size.unwrap_or(crate::LEAF_CAP));
 
-        let zs: Vec<Ref<Node<T>>> = slice.chunks(n).map(|x| Ref::new(Node::from(x))).collect();
+        let mut leafs: Vec<Ref<Node<T>>> =
+            slice.chunks(n).map(|x| Ref::new(Node::from(x))).collect();
+        leafs.reverse();
 
-        let depth = (zs.len() as f64).log2().ceil() as usize;
-        let mut iter = zs.into_iter();
-        let item = iter.next();
-        let (root, _) = Node::build_bottoms_up(depth, item, &mut iter);
-
-        assert!(iter.next().is_none());
+        let depth = (leafs.len() as f64).log2().ceil() as usize;
+        let (root, _) = Node::build_bottoms_up(depth, &mut leafs);
+        assert!(leafs.len() == 0);
 
         Vector {
             len: slice.len(),
@@ -300,23 +299,29 @@ where
     ///
     /// Call [Self::rebalance] on `self` and/or the returned vector to
     /// make the vectors fully balanced.
-    pub fn split_off(&mut self, off: usize) -> Vector<T>
+    pub fn split_off(&mut self, off: usize) -> Result<Vector<T>>
     where
         T: Clone,
     {
-        if off >= self.len {
-            panic!("index {} out of bounds for len {}", off, self.len())
-        }
-
-        let (node, root, n) = self.root.split_off(off, self.len);
-        self.root = node;
-        self.len -= n;
-
-        Vector {
-            len: n,
-            root,
-            auto_rebalance: self.auto_rebalance,
-            leaf_cap: self.leaf_cap,
+        if off > self.len {
+            err_at!(IndexFail, msg: "offset {} out of bounds", off)
+        } else if off == self.len {
+            Ok(Vector {
+                len: 0,
+                root: Node::empty_leaf(),
+                auto_rebalance: self.auto_rebalance,
+                leaf_cap: self.leaf_cap,
+            })
+        } else {
+            let (node, root, n) = self.root.split_off(off, self.len);
+            self.root = node;
+            self.len -= n;
+            Ok(Vector {
+                len: n,
+                root,
+                auto_rebalance: self.auto_rebalance,
+                leaf_cap: self.leaf_cap,
+            })
         }
     }
 
@@ -347,7 +352,7 @@ where
     pub fn rebalance(&self) -> Result<Self> {
         let rn = Rebalance::new(self);
         let root = Ref::clone(&self.root);
-        let (root, _) = Node::auto_rebalance(root, 0, true, &rn)?;
+        let (root, _depth) = Node::auto_rebalance(root, 0, true, &rn)?;
         let val = Vector {
             len: self.len,
             root,
@@ -368,9 +373,9 @@ where
         (acc, n)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "fuzzing"))]
     #[allow(dead_code)]
-    fn pretty_print(&self) {
+    pub fn pretty_print(&self) {
         self.root.pretty_print("".to_string(), self.len)
     }
 }
@@ -693,20 +698,18 @@ where
         force: bool,
         rn: &Rebalance,
     ) -> Result<(Ref<Node<T>>, usize)> {
-        let doit = {
-            let b = force;
-            b || (rn.auto_rebalance == true) && rn.can_rebalance(depth)
-        };
+        let doit = force || (rn.auto_rebalance == true) && rn.can_rebalance(depth);
 
         match doit {
             false => Ok((node, depth)),
             true => {
-                let zs = Node::collect_leaf_nodes(node);
-                let depth = (zs.len() as f64).log2().ceil() as usize;
-                let mut iter = zs.into_iter();
-                let item = iter.next();
-                let (nroot, _) = Node::build_bottoms_up(depth, item, &mut iter);
-                assert!(iter.next().is_none());
+                let mut leafs = Node::collect_leaf_nodes(node);
+                leafs.reverse();
+
+                let depth = (leafs.len() as f64).log2().ceil() as usize;
+                let (nroot, _) = Node::build_bottoms_up(depth, &mut leafs);
+                assert!(leafs.len() == 0);
+
                 Ok((nroot, depth))
             }
         }
@@ -733,26 +736,54 @@ where
         }
     }
 
-    fn build_bottoms_up(
-        depth: usize,
-        item: Option<Ref<Node<T>>>,
-        ziter: &mut impl Iterator<Item = Ref<Node<T>>>,
-    ) -> (Ref<Node<T>>, usize) {
-        let (root, n) = match (depth, item) {
-            (_, None) => (Ref::new(Node::Z { data: vec![] }), 0),
-            (0, Some(l)) => {
-                let n = l.len();
-                (l, n)
+    fn build_bottoms_up(depth: usize, leafs: &mut Vec<Ref<Node<T>>>) -> (Ref<Node<T>>, usize) {
+        let (root, n) = match (depth, leafs.len()) {
+            (0, 0) => (Ref::new(Node::Z { data: vec![] }), 0),
+            (0, 1) | (1, 1) => {
+                let node = leafs.pop().unwrap();
+                let n = node.len();
+                (node, n)
             }
-            (_, item) => {
-                let (left, weight) = Self::build_bottoms_up(depth - 1, item, ziter);
-                let (right, m) = Self::build_bottoms_up(depth - 1, ziter.next(), ziter);
+            (1, n) if n >= 2 => {
+                let (left, right) = (leafs.pop().unwrap(), leafs.pop().unwrap());
+
+                let weight = left.len();
+                let n = weight + right.len();
+
                 let node = Node::M {
                     weight,
                     left,
                     right,
                 };
-                (Ref::new(node), weight + m)
+
+                (Ref::new(node), n)
+            }
+            (_, 1) => Self::build_bottoms_up(1, leafs),
+            (_, 2) => Self::build_bottoms_up(1, leafs),
+            (depth, _) => {
+                let (left, weight) = Self::build_bottoms_up(depth - 1, leafs);
+                match leafs.len() {
+                    0 => (left, weight),
+                    1 => {
+                        let right = leafs.pop().unwrap();
+                        let m = right.len();
+                        let node = Node::M {
+                            weight,
+                            left,
+                            right,
+                        };
+                        (Ref::new(node), weight + m)
+                    }
+                    _ => {
+                        let (right, m) = Self::build_bottoms_up(depth - 1, leafs);
+                        let node = Node::M {
+                            weight,
+                            left,
+                            right,
+                        };
+                        (Ref::new(node), weight + m)
+                    }
+                }
             }
         };
 
@@ -789,12 +820,14 @@ where
         match self {
             Node::M { left, right, .. } => {
                 if Ref::strong_count(left) > 1 {
-                    acc.push(Ref::as_ptr(left));
+                    let ptr = Ref::as_ptr(left);
+                    acc.push(ptr as *const u8);
                 }
                 let mut n = left.fetch_multiversions(acc);
 
                 if Ref::strong_count(right) > 1 {
-                    acc.push(Ref::as_ptr(right));
+                    let ptr = Ref::as_ptr(right);
+                    acc.push(ptr as *const u8);
                 }
                 n += right.fetch_multiversions(acc);
                 n + 1
@@ -803,7 +836,7 @@ where
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "fuzzing"))]
     #[allow(dead_code)]
     fn pretty_print(&self, mut prefix: String, len: usize) {
         match self {
@@ -931,7 +964,7 @@ where
 
 fn max_leaf_items<T>(cap: usize) -> usize {
     let s = mem::size_of::<T>();
-    (cap / s) + 1
+    (cap / s) + if cap % s == 0 { 0 } else { 1 }
 }
 
 #[cfg(any(feature = "fuzzing", test))]
@@ -972,11 +1005,6 @@ pub fn validate_mem_ratio(k: usize, mem: usize, n: usize) {
             );
         }
     }
-}
-
-#[cfg(feature = "fuzzing")]
-enum Op {
-    //
 }
 
 #[cfg(test)]

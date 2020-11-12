@@ -34,4 +34,4 @@ rand = { version = "0.7.3", features = ["small_rng"]}
 
 [features]
 perf = ["structopt", "rand", "im", "im-rc"]
-fuzzing = ["structopt", "rand", "im", "im-rc"]
+fuzzing = ["structopt", "rand"]
