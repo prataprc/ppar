@@ -108,7 +108,7 @@ fn test_split_off() {
             let off = rng.gen::<usize>() % arr.len();
             // println!("test_split_off off:{} len:{}", off, arr.len());
             let (a, b) = (arr.split_off(off).unwrap(), refv.split_off(off));
-            arr = arr.rebalance().unwrap();
+            arr = arr.rebalance(false).unwrap();
             validate(&a, &b);
             validate(&arr, &refv);
         }
@@ -245,7 +245,7 @@ fn test_rebalance() {
     let mut refv: Vec<u64> = vec![];
 
     for _i in 0..10_000 {
-        arr = arr.rebalance().unwrap();
+        arr = arr.rebalance(false).unwrap();
 
         let val = rng.gen::<u64>();
         refv.push(val);

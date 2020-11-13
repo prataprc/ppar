@@ -11,8 +11,18 @@ that are super-large and/or step into requirements like  non-destructive
 writes and concurrent access, we find [std::vec][std_vec] insufficient.
 [im][im] is a popular alternative, but has `insert()` and `delete()`
 penalties similar to `std::vec` for large arrays. While most implementation
-prefer to use [RRB-Tree][rrb], `ppar` uses a modified version of
-[Rope data structure][rope].
+prefer to use [RRB-Tree][rrb], `ppar` is based on [Rope data structure][rope].
+
+Here is a quick list of situation that might require using `ppar`.
+
+* When array size is too large with repeated insert and remove operation.
+* When shared ownership is required.
+* When shared ownership across concurrent threads.
+* To support undo/redo operation for array modifications.
+* When splitting up of array and/or joining arrays are frequently done.
+
+Algorithm
+---------
 
 Fundamentally, it can be viewed as a binary-tree of array-blocks, where
 each leaf-node is a contiguous-block of type `T` items, while intermediate
@@ -21,7 +31,7 @@ To be more precise, intermediate nodes in the tree are organised similar
 to rope structure, as a tuple of `(weight, left, right)` where weight is
 the sum of all items present in the leaf-nodes under the left-branch.
 
-A list of alternatives can be found [here][#Alternate-solutions]. If you
+A list of alternatives can be found [here][alternate-solutions]. If you
 find good alternatives please add it to the list and raise a PR.
 
 If you are planning to use `ppar` for your project, do let us know.
@@ -33,13 +43,13 @@ Goals
 - [x] Immutable / Persistent collection of Vector<T>.
 - [x] CRUD operation, get(), set(), delete(), insert(), all are persistent.
 - [x] Convert from Vec<T> to ppar::Vector<T>.
-- [ ] Convert from ppar::Vector<T> to Vec<T>.
+- [x] Convert from ppar::Vector<T> to Vec<T>.
 - [x] Thread safe operations.
-- [ ] [std::vec::Vec][std_vector] like mutable API.
+- [x] [std::vec::Vec][std_vector] like mutable API.
 - [ ] Iteration over collection, item-wise, chunk-wise, reverse.
 - [ ] Deduplication.
 - [ ] Membership.
-- [ ] Joining collections, splitting into collections.
+- [x] Joining collections, splitting into collections.
 - [ ] Partial collection.
 - [ ] Extending collection.
 - [ ] Queue operations, like pop(), push().
@@ -54,19 +64,20 @@ Goals
   - [ ] Index, IndexMut
   - [ ] Write
 - [ ] Parallel iteration with [rayon][rayon].
-- [ ] Arbitrary implementation from [quickcheck][quickcheck].
+- [x] Fuzzy tested.
 
-The basic algorithm is fairly tight. Though we can make the `ppar::Vector`
-type as rich as [std::vec::Vec][std_vector] and [im::Vector][im_vector].
+The basic algorithm is fairly tight. Contributions are welcome to make the
+`ppar::Vector` type as rich as [std::vec::Vec][std_vector] and
+[im::Vector][im_vector].
 
 Contributions
 -------------
 
 * Simple workflow. Fork, modify and raise a pull request.
-* Use [rust-fuzz](https://rust-fuzz.github.io/book) for fuzz-testing.
-  * TODO: run test.sh (unit-testing, unit-benchmarks, fuzz-testing).
-  * TODO: run perf.sh
-* TODO: Developer certificate of origin.
+* Before making a PR,
+  * execute `check.sh` to pass unit-testing and fuzzy testing.
+  * execute `perf.sh` for performance report.
+* [Developer certificate of origin][dco] is preferred.
 
 Benchmark
 ---------
@@ -123,3 +134,4 @@ Alternate solutions
 [rrb]: https://infoscience.epfl.ch/record/213452/files/rrbvector.pdf
 [rayon]: https://crates.io/crates/rayon
 [quickcheck]: https://crates.io/crates/quickcheck
+[dco]: https://developercertificate.org/

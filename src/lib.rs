@@ -7,6 +7,14 @@
 //! to rope structure, as a tuple of (*weight*, *left*, *right*) where weight
 //! is the sum of all items present in the leaf-nodes under the left-branch.
 //!
+//! Here is a quick list of situation that might require using `ppar`.
+//!
+//! * When array size is too large with repeated insert and remove operation.
+//! * When shared ownership is required.
+//! * When shared ownership across concurrent threads.
+//! * To support undo/redo operation for array modifications.
+//! * When splitting up of array and/or joining arrays are frequently done.
+//!
 //! Ownership and Cloning
 //! =====================
 //!

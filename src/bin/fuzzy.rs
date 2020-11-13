@@ -88,7 +88,10 @@ macro_rules! initialize {
             let bytes = rng.gen::<[u8; 32]>();
             let mut uns = Unstructured::new(&bytes);
 
-            let mut arr: ppar::$ref::Vector<T> = uns.arbitrary().unwrap();
+            let mut arr = ppar::$ref::Vector::<T>::new();
+            let k = std::mem::size_of::<T>();
+            let leaf_cap = *uns.choose(&[k * 100, k * 1000, k * 10000]).unwrap();
+            arr.set_leaf_size(leaf_cap);
             arr.set_auto_rebalance(true);
 
             let prepend_load = opts.load / 2;
@@ -102,7 +105,7 @@ macro_rules! initialize {
             }
             vec.reverse();
 
-            for _ in 0..append_load {
+            for _i in 0..append_load {
                 let val: T = rng.gen();
                 arr.insert(arr.len(), val.clone()).unwrap();
                 vec.push(val);
@@ -141,7 +144,7 @@ where
     Iter,
     SplitOff(Index),
     Append(Vec<T>),
-    Rebalance,
+    Rebalance(bool),
 }
 
 impl<T> Op<T>
@@ -165,7 +168,7 @@ where
             Op::Iter => "iter",
             Op::SplitOff(_) => "split_off",
             Op::Append(_) => "append",
-            Op::Rebalance => "rebalance",
+            Op::Rebalance(_) => "rebalance",
         };
         let val = counts.get(key).map(|v| v + 1).unwrap_or(1);
         counts.insert(key, val);
@@ -302,8 +305,8 @@ macro_rules! fuzzy_ops {
                         arr.append(ppar::$ref::Vector::from_slice(&other, None));
                         vec.append(&mut other);
                     }
-                    Op::Rebalance => {
-                        arr = arr.rebalance().unwrap();
+                    Op::Rebalance(packed) => {
+                        arr = arr.rebalance(packed).unwrap();
                     }
                 }
             }

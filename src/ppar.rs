@@ -33,7 +33,7 @@ where
         let mut arr = vec![];
 
         let root = Ref::clone(&val.root);
-        for leaf in Node::collect_leaf_nodes(root) {
+        for leaf in Node::collect_leaf_nodes(root, false, val.leaf_cap) {
             match leaf.borrow() {
                 Node::Z { data } => arr.extend_from_slice(data),
                 _ => unreachable!(),
@@ -201,7 +201,11 @@ where
                 .unwrap()
                 .insert_mut(off, value, &rn)?;
 
-            let (root, _) = Node::auto_rebalance(Ref::clone(&self.root), depth, false, &rn)?;
+            let packed = false;
+            let force = false;
+            let (root, _) =
+                Node::auto_rebalance(Ref::clone(&self.root), depth, packed, force, &rn)?;
+
             self.root = root;
             self.len += 1;
             Ok(())
@@ -349,10 +353,15 @@ where
     }
 
     /// When auto-rebalance is disabled, use this method to rebalance the tree.
-    pub fn rebalance(&self) -> Result<Self> {
+    /// Calling it with `packed` as true will make sure that the leaf nodes
+    /// are fully packed when rebuilding the tree.
+    pub fn rebalance(&self, packed: bool) -> Result<Self>
+    where
+        T: Clone,
+    {
         let rn = Rebalance::new(self);
         let root = Ref::clone(&self.root);
-        let (root, _depth) = Node::auto_rebalance(root, 0, true, &rn)?;
+        let (root, _depth) = Node::auto_rebalance(root, 0, packed, true, &rn)?;
         let val = Vector {
             len: self.len,
             root,
@@ -366,8 +375,6 @@ where
     // the total number of nodes in the tree.
     #[cfg(feature = "fuzzing")]
     pub fn fetch_multiversions(&self) -> (Vec<*const u8>, usize) {
-        assert_eq!(Ref::strong_count(&self.root), 1);
-
         let mut acc = vec![];
         let n = self.root.fetch_multiversions(&mut acc);
         (acc, n)
@@ -428,6 +435,45 @@ where
         }
     }
 
+    fn cow(&self) -> Node<T>
+    where
+        T: Clone,
+    {
+        match self {
+            Node::Z { data } => Node::Z {
+                data: data.to_vec(),
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    fn pack(&mut self, other: &Self, cap: usize) -> Option<Self>
+    where
+        T: Clone,
+    {
+        use std::cmp::min;
+
+        match (self, other) {
+            (Node::Z { data }, Node::Z { data: other }) => {
+                let other = if data.len() < cap {
+                    let n = min(cap - data.len(), other.len());
+                    data.extend_from_slice(&other[..n]);
+                    &other[n..]
+                } else {
+                    other
+                };
+                if other.len() > 0 {
+                    Some(Node::Z {
+                        data: other.to_vec(),
+                    })
+                } else {
+                    None
+                }
+            }
+            (_, _) => unreachable!(),
+        }
+    }
+
     fn footprint(&self) -> usize {
         let n = mem::size_of_val(self);
         n + match self {
@@ -475,7 +521,7 @@ where
             Node::Z { data } => (Self::split_insert(data, off, val), 2),
         };
 
-        let (node, depth) = Node::auto_rebalance(node, depth, false, rn)?;
+        let (node, depth) = Node::auto_rebalance(node, depth, false, false, rn)?;
 
         Ok((node, depth))
     }
@@ -695,15 +741,19 @@ where
     fn auto_rebalance(
         node: Ref<Node<T>>,
         depth: usize,
+        packed: bool,
         force: bool,
         rn: &Rebalance,
-    ) -> Result<(Ref<Node<T>>, usize)> {
+    ) -> Result<(Ref<Node<T>>, usize)>
+    where
+        T: Clone,
+    {
         let doit = force || (rn.auto_rebalance == true) && rn.can_rebalance(depth);
 
         match doit {
             false => Ok((node, depth)),
             true => {
-                let mut leafs = Node::collect_leaf_nodes(node);
+                let mut leafs = Node::collect_leaf_nodes(node, packed, rn.leaf_cap);
                 leafs.reverse();
 
                 let depth = (leafs.len() as f64).log2().ceil() as usize;
@@ -715,10 +765,13 @@ where
         }
     }
 
-    fn collect_leaf_nodes(root: Ref<Node<T>>) -> Vec<Ref<Node<T>>> {
+    fn collect_leaf_nodes(root: Ref<Node<T>>, packed: bool, leaf_cap: usize) -> Vec<Ref<Node<T>>>
+    where
+        T: Clone,
+    {
         let (mut stack, mut acc) = (vec![], vec![]);
         let mut node = root;
-        loop {
+        let leafs = loop {
             match node.borrow() {
                 Node::Z { .. } if stack.len() == 0 => {
                     acc.push(Ref::clone(&node));
@@ -733,6 +786,23 @@ where
                     node = Ref::clone(left);
                 }
             }
+        };
+
+        if packed {
+            let mut packed_leafs: Vec<Node<T>> = vec![];
+            let cap = max_leaf_items::<T>(leaf_cap);
+            for leaf in leafs.into_iter() {
+                match packed_leafs.last_mut() {
+                    None => packed_leafs.push(leaf.cow()),
+                    Some(last) => match last.pack(leaf.borrow(), cap) {
+                        Some(next) => packed_leafs.push(next),
+                        None => (),
+                    },
+                }
+            }
+            packed_leafs.into_iter().map(Ref::new).collect()
+        } else {
+            leafs
         }
     }
 
@@ -997,7 +1067,7 @@ pub fn validate_mem_ratio(k: usize, mem: usize, n: usize) {
             let k = k as f64;
             let ratio = ((((mem as f64) / (n as f64)) - k) / k) * 100.0;
             assert!(
-                (ratio < 100.0) || (n < 100),
+                (ratio < 120.0) || (n < 100),
                 "n:{} footp:{} ratio:{}",
                 n,
                 mem,
