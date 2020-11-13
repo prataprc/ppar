@@ -1,0 +1,13 @@
+               rc::Vector  arc::Vector  im::Vector  vec::Vec
+append          154          245         120253      198782
+clone           13           34          122         152317
+split_off       9227         9323        6450        192494
+get             68           63          77          14
+iter            4            4           9           0
+load            2127         2399        85677       11751
+insert          2511         3087        145620      29845
+insert_mut      500          631         143432      31174
+remove          2632         3276        127436      32663
+remove_mut      414          581         146368      33494
+update          1588         1901        180         4
+update_mut      81           214         172         4

@@ -20,6 +20,7 @@ Here is a quick list of situation that might require using `ppar`.
 * When shared ownership across concurrent threads.
 * To support undo/redo operation for array modifications.
 * When splitting up of array and/or joining arrays are frequently done.
+* Lazy clone of array using copy-on-write.
 
 Algorithm
 ---------
@@ -82,42 +83,10 @@ Contributions
 Benchmark
 ---------
 
-On a 2010 8GB core2-duo machine, thread safe:
+On a 2008 core2-duo machine with 8GB RAM.
 
-```bash
-test bench_append      ... bench:       2,892 ns/iter (+/- 591)
-test bench_delete_100K ... bench:       4,557 ns/iter (+/- 496)
-test bench_get_100K    ... bench:          65 ns/iter (+/- 0)
-test bench_insert_rand ... bench:       8,212 ns/iter (+/- 3,156)
-test bench_prepend     ... bench:       3,631 ns/iter (+/- 479)
-test bench_set_100K    ... bench:       1,670 ns/iter (+/- 149)
-```
-
-
-On a 2010 8GB core2-duo machine, single threaded:
-
-```bash
-test bench_append      ... bench:       2,214 ns/iter (+/- 304)
-test bench_delete_100K ... bench:       3,876 ns/iter (+/- 499)
-test bench_get_100K    ... bench:          64 ns/iter (+/- 0)
-test bench_insert_rand ... bench:       6,105 ns/iter (+/- 2,989)
-test bench_prepend     ... bench:       2,833 ns/iter (+/- 470)
-test bench_set_100K    ... bench:       1,307 ns/iter (+/- 83)
-```
-
-Via performance application,
-
-```text
-ppar::Vector performance characterization
------------------------------------------
-append-load(1000000 items)     : 8.918079ms
-random-load(1000000 items)     : 5.854µs
-get(1000000 ops)               : 124ns
-set(1000000 ops)               : 5.489µs
-delete-insert(1000000 ops)     : 10.313µs
-overhead                       : "37.19%"
-overhead after 90% delete      : "33.30%"
-```
+![reads](./reports/2020-11-13/read-ops.png)
+![write](./reports/2020-11-13/write-ops.png)
 
 Alternate solutions
 -------------------

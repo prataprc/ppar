@@ -1,16 +1,9 @@
-#[cfg(not(feature = "ppar-rc"))]
-use im::Vector as ImVector;
-#[cfg(feature = "ppar-rc")]
-use im_rc::Vector as ImVector;
 use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
 use structopt::StructOpt;
 
-use std::time;
+use std::{collections::BTreeMap, time};
 
 use ppar;
-
-// NOTE: im::Vector does not remove/delete op.
-// NOTE: im::Vector, how to measure the value footprint.
 
 #[macro_export]
 macro_rules! pp {
@@ -33,244 +26,449 @@ pub struct Opt {
 
     #[structopt(long = "leaf-size")]
     leaf_size: Option<usize>,
-
-    #[structopt(long = "im-vector")]
-    im_vector: bool,
 }
 
 fn main() {
-    let mut opts = Opt::from_args();
+    use std::iter::repeat;
+
+    let opts = Opt::from_args();
     let mut rng = {
         let seed = opts.seed.unwrap_or(random());
         // let seed: u128 = 89704735013013664095413923566273445973;
         SmallRng::from_seed(seed.to_le_bytes())
     };
 
-    println!("\nppar::Vector performance characterization");
-    println!("-----------------------------------------");
-    let mut arr: ppar::Vector<u64> = ppar::Vector::new();
-    opts.leaf_size.map(|s| arr.set_leaf_size(s));
-    let mut arr = ppar_load(arr, &mut opts, &mut rng);
-    arr = ppar_ops(arr, &mut opts, &mut rng);
-    ppar_delete_skew(arr, &mut rng);
+    let arrs: Vec<(&str, Array<u64>)> = vec![
+        (
+            "ppar::rc::Vector ",
+            Array::new_vector(opts.leaf_size.unwrap_or(ppar::LEAF_CAP), true),
+        ),
+        (
+            "ppar::arc::Vector",
+            Array::new_vector_safe(opts.leaf_size.unwrap_or(ppar::LEAF_CAP), true),
+        ),
+        ("im::Vector       ", Array::new_im()),
+        ("std::vec::Vec    ", Array::new_vec()),
+    ];
 
-    if opts.im_vector {
-        println!("\nim::Vector performance characterization");
-        println!("---------------------------------------\n");
-        let arr = im_load(&mut opts, &mut rng);
-        im_ops(arr, &mut opts, &mut rng);
+    for (opts, (s, arr)) in repeat(opts).take(4).zip(arrs.into_iter()) {
+        let mut perf = Perf::new(arr, opts);
+        println!("Performance report for {}", s);
+        println!("--------------------------------------");
+        perf.load(&mut rng);
+        perf.run(&mut rng);
+        perf.rebalance(true);
+        perf.pretty_print();
+        println!("")
     }
 }
 
-fn mem_ratio(mem: usize, n: usize) -> f64 {
-    let s = 8;
+fn mem_ratio<T>(mem: usize, n: usize) -> f64 {
+    let s = std::mem::size_of::<T>();
     ((((mem as f64) / (n as f64)) - (s as f64)) / s as f64) * 100_f64
 }
 
-fn ppar_load(mut arr: ppar::Vector<u64>, opts: &mut Opt, rng: &mut SmallRng) -> ppar::Vector<u64> {
-    let vals: Vec<u64> = (0..opts.load).map(|_| rng.gen()).collect();
-    let offs: Vec<usize> = (0..opts.load)
-        .map(|n| rng.gen::<usize>() % (n + 1))
-        .collect();
-
-    {
-        let start = time::Instant::now();
-        let arr = ppar::Vector::from_slice(&vals, opts.leaf_size);
-        pp!(
-            "append-load({} items)",
-            arr.len()
-            =>
-            start.elapsed()
-        );
-    }
-
-    {
-        let (offs, vals) = (offs.clone(), vals.clone());
-        let start = time::Instant::now();
-        for (off, val) in offs.into_iter().zip(vals) {
-            arr.insert(off, val).unwrap();
-        }
-        pp!(
-            "random-load({} items)",
-            arr.len()
-            =>
-            start.elapsed() / (opts.load as u32)
-        );
-    }
-
-    arr
+#[derive(Clone)]
+enum Array<T>
+where
+    T: Clone,
+{
+    Vector(ppar::rc::Vector<T>),
+    VectorSafe(ppar::arc::Vector<T>),
+    Vec(Vec<T>),
+    Im(im::Vector<T>),
 }
 
-fn ppar_ops(mut arr: ppar::Vector<u64>, opts: &Opt, rng: &mut SmallRng) -> ppar::Vector<u64> {
-    let vals: Vec<u64> = (0..opts.ops).map(|_| rng.gen()).collect();
-    let offs: Vec<usize> = (0..opts.ops)
-        .map(|_| rng.gen::<usize>() % arr.len())
-        .collect();
-
-    {
-        let start = time::Instant::now();
-        let offs = offs.clone();
-        for off in offs.into_iter() {
-            arr.get(off).unwrap();
-        }
-        pp!(
-            "get({} ops)",
-            opts.ops
-            =>
-            start.elapsed() / (opts.ops as u32)
-        );
+impl<T> Array<T>
+where
+    T: Clone,
+    rand::distributions::Standard: rand::distributions::Distribution<T>,
+{
+    fn new_vector(leaf_size: usize, auto_rebalance: bool) -> Self {
+        let mut arr = ppar::rc::Vector::<T>::new();
+        arr.set_leaf_size(leaf_size)
+            .set_auto_rebalance(auto_rebalance);
+        Array::Vector(arr)
     }
 
-    {
+    fn new_vector_safe(leaf_size: usize, auto_rebalance: bool) -> Self {
+        let mut arr = ppar::arc::Vector::<T>::new();
+        arr.set_leaf_size(leaf_size)
+            .set_auto_rebalance(auto_rebalance);
+        Array::VectorSafe(arr)
+    }
+
+    fn new_vec() -> Self {
+        Array::<T>::Vec(vec![])
+    }
+
+    fn new_im() -> Self {
+        Array::Im(im::Vector::<T>::new())
+    }
+
+    fn load(&mut self, n: usize, rng: &mut SmallRng) -> (time::Duration, usize) {
+        let offs: Vec<usize> = (1..=n).map(|i| rng.gen::<usize>() % i).collect();
+        let vals: Vec<T> = (0..n).map(|_| rng.gen::<T>()).collect();
+
         let start = time::Instant::now();
-        let offs = offs.clone();
-        let vals = vals.clone();
         for (off, val) in offs.into_iter().zip(vals.into_iter()) {
-            arr.insert(off, val).unwrap();
+            match self {
+                Array::Vector(arr) => arr.insert(off, val).unwrap(),
+                Array::VectorSafe(arr) => arr.insert(off, val).unwrap(),
+                Array::Vec(arr) => arr.insert(off, val),
+                Array::Im(arr) => arr.insert(off, val),
+            }
         }
-        pp!(
-            "insert({} ops)",
-            opts.ops
-            =>
-            start.elapsed() / (opts.ops as u32)
-        );
+        let elapsed = start.elapsed();
+
+        (elapsed, n)
     }
 
-    {
-        let start = time::Instant::now();
-        let offs = offs.clone();
-        let vals = vals.clone();
-        for (off, val) in offs.into_iter().zip(vals.into_iter()) {
-            arr.set(off, val).unwrap();
+    fn len(&self) -> usize {
+        match self {
+            Array::Vector(arr) => arr.len(),
+            Array::VectorSafe(arr) => arr.len(),
+            Array::Vec(arr) => arr.len(),
+            Array::Im(arr) => arr.len(),
         }
-        pp!(
-            "set({} ops)",
-            opts.ops
-            =>
-            start.elapsed() / (opts.ops as u32)
-        );
     }
 
-    {
-        let start = time::Instant::now();
-        let offs = offs.clone();
-        let vals = vals.clone();
-        for (off, val) in offs.into_iter().zip(vals.into_iter()) {
-            arr.remove(off).unwrap();
-            arr.insert(off, val).unwrap();
+    fn rebalance(&self, packed: bool) -> Option<Self> {
+        match self {
+            Array::Vector(arr) => Some(Array::Vector(arr.rebalance(packed).unwrap())),
+            Array::VectorSafe(arr) => Some(Array::VectorSafe(arr.rebalance(packed).unwrap())),
+            Array::Vec(_) => None,
+            Array::Im(_) => None,
         }
-        pp!(
-            "delete-insert({} ops)",
-            opts.ops
-            =>
-            start.elapsed() / (opts.ops as u32)
-        );
     }
-
-    let ratio = format!("{:.2}%", mem_ratio(arr.footprint(), arr.len()));
-    pp!("overhead" => ratio);
-
-    arr
 }
 
-fn ppar_delete_skew(mut arr: ppar::Vector<u64>, rng: &mut SmallRng) -> ppar::Vector<u64> {
-    let offs: Vec<usize> = (0..((arr.len() / 10) * 9))
-        .map(|n| rng.gen::<usize>() % (arr.len() - n))
-        .collect();
-
-    for off in offs.into_iter() {
-        arr.remove(off).unwrap();
-    }
-
-    let ratio = format!("{:.2}%", mem_ratio(arr.footprint(), arr.len()));
-    pp!("overhead after 90% delete" => ratio);
-
-    arr
+struct Perf<T>
+where
+    T: Clone,
+{
+    opts: Opt,
+    val: Array<T>,
+    stats: BTreeMap<&'static str, (time::Duration, usize)>,
 }
 
-fn im_load(opts: &mut Opt, rng: &mut SmallRng) -> ImVector<u64> {
-    let vals: Vec<u64> = (0..opts.load).map(|_| rng.gen()).collect();
-
-    let arr = {
-        let start = time::Instant::now();
-        let arr: ImVector<u64> = ImVector::from(&vals);
-        pp!(
-            "append-load({} items)",
-            arr.len()
-            =>
-            start.elapsed()
-        );
-        arr
-    };
-
-    arr
-}
-
-fn im_ops(mut arr: ImVector<u64>, opts: &Opt, rng: &mut SmallRng) -> ImVector<u64> {
-    let vals: Vec<u64> = (0..opts.ops).map(|_| rng.gen()).collect();
-    let offs: Vec<usize> = (0..opts.ops)
-        .map(|_| rng.gen::<usize>() % arr.len())
-        .collect();
-
-    {
-        let start = time::Instant::now();
-        let offs = offs.clone();
-        for off in offs.into_iter() {
-            arr.get(off).unwrap();
-        }
-        pp!(
-            "get({} ops)",
-            opts.ops
-            =>
-            start.elapsed() / (opts.ops as u32)
-        );
+impl<T> Perf<T>
+where
+    T: Clone,
+    rand::distributions::Standard: rand::distributions::Distribution<T>,
+{
+    fn new(val: Array<T>, opts: Opt) -> Self {
+        let stats = BTreeMap::new();
+        Perf { opts, val, stats }
     }
 
-    {
+    fn len(&self) -> usize {
+        match &self.val {
+            Array::Vector(val) => val.len(),
+            Array::VectorSafe(val) => val.len(),
+            Array::Vec(val) => val.len(),
+            Array::Im(val) => val.len(),
+        }
+    }
+
+    fn rebalance(&mut self, packed: bool) {
+        match self.val.rebalance(packed) {
+            Some(val) => self.val = val,
+            None => (),
+        }
+    }
+
+    fn load(&mut self, rng: &mut SmallRng) {
+        self.stats
+            .insert("load", self.val.load(self.opts.load, rng));
+    }
+
+    fn run(&mut self, rng: &mut SmallRng) {
+        self.op_clone(self.opts.ops);
+        self.op_insert(self.opts.ops, rng);
+        self.op_insert_mut(self.opts.ops, rng);
+        self.op_remove(self.opts.ops, rng);
+        self.op_remove_mut(self.opts.ops, rng);
+        self.op_update(self.opts.ops, rng);
+        self.op_update_mut(self.opts.ops, rng);
+        self.op_get(self.opts.ops, rng);
+        self.op_iter(self.opts.ops);
+        self.op_split_append(self.opts.ops, rng);
+    }
+
+    fn pretty_print(&self) {
+        for (k, (elapsed, n)) in self.stats.iter() {
+            println!("{:14} {:?}", k, *elapsed / (*n as u32));
+        }
+        let fp = match &self.val {
+            Array::Vector(val) => Some((val.footprint(), val.len())),
+            Array::VectorSafe(val) => Some((val.footprint(), val.len())),
+            _ => None,
+        };
+        match fp {
+            Some((mem, n)) => {
+                let ratio = mem_ratio::<T>(mem, n);
+                println!("{:14} {}% {:?}", "mem-ratio", ratio, (mem, n));
+            }
+            None => (),
+        }
+    }
+
+    fn op_clone(&mut self, n_ops: usize) -> usize {
         let start = time::Instant::now();
-        let offs = offs.clone();
-        let vals = vals.clone();
+        let mut acc = vec![];
+        for _i in 0..n_ops {
+            acc.push(self.val.clone().len());
+        }
+        let elapsed = start.elapsed();
+
+        self.stats.insert("clone", (elapsed, n_ops));
+        acc.len()
+    }
+
+    fn op_insert(&mut self, n_ops: usize, rng: &mut SmallRng) {
+        let len = self.len();
+        let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
+        let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
+
+        let start = time::Instant::now();
         for (off, val) in offs.into_iter().zip(vals.into_iter()) {
-            arr = arr.update(off, val);
+            match &mut self.val {
+                Array::Vector(arr) => arr.insert(off, val).unwrap(),
+                Array::VectorSafe(arr) => arr.insert(off, val).unwrap(),
+                Array::Vec(arr) => arr.insert(off, val),
+                Array::Im(arr) => arr.insert(off, val),
+            };
         }
-        pp!(
-            "update({} ops)",
-            opts.ops
-            =>
-            start.elapsed() / (opts.ops as u32)
-        );
+        let elapsed = start.elapsed();
+
+        self.stats.insert("insert", (elapsed, n_ops));
     }
 
-    {
+    fn op_insert_mut(&mut self, n_ops: usize, rng: &mut SmallRng) {
+        let len = self.len();
+        let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
+        let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
+
         let start = time::Instant::now();
-        let offs = offs.clone();
-        let vals = vals.clone();
         for (off, val) in offs.into_iter().zip(vals.into_iter()) {
-            arr.insert(off, val);
+            match &mut self.val {
+                Array::Vector(arr) => arr.insert_mut(off, val).unwrap(),
+                Array::VectorSafe(arr) => arr.insert_mut(off, val).unwrap(),
+                Array::Vec(arr) => arr.insert(off, val),
+                Array::Im(arr) => arr.insert(off, val),
+            };
         }
-        pp!(
-            "insert({} ops)",
-            opts.ops
-            =>
-            start.elapsed() / (opts.ops as u32)
-        );
+        let elapsed = start.elapsed();
+
+        self.stats.insert("insert_mut", (elapsed, n_ops));
     }
 
-    {
+    fn op_remove(&mut self, n_ops: usize, rng: &mut SmallRng) {
+        let len = self.len();
+        let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
+        let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
+
+        for (off, val) in offs.into_iter().zip(vals.into_iter()) {
+            match &mut self.val {
+                Array::Vector(arr) => arr.insert(off, val).unwrap(),
+                Array::VectorSafe(arr) => arr.insert(off, val).unwrap(),
+                Array::Vec(arr) => arr.insert(off, val),
+                Array::Im(arr) => arr.insert(off, val),
+            };
+        }
+
+        let len = self.len();
+        let offs = (0..n_ops).map(|i| rng.gen::<usize>() % (len - i));
+
         let start = time::Instant::now();
-        let offs = offs.clone();
-        let vals = vals.clone();
-        for (off, val) in offs.into_iter().zip(vals.into_iter()) {
-            arr.remove(off);
-            arr.insert(off, val);
+        for off in offs {
+            match &mut self.val {
+                Array::Vector(arr) => arr.remove(off).unwrap(),
+                Array::VectorSafe(arr) => arr.remove(off).unwrap(),
+                Array::Vec(arr) => arr.remove(off),
+                Array::Im(arr) => arr.remove(off),
+            };
         }
-        pp!(
-            "delete-insert({} ops)",
-            opts.ops
-            =>
-            start.elapsed() / (opts.ops as u32)
-        );
+        let elapsed = start.elapsed();
+
+        self.stats.insert("remove", (elapsed, n_ops));
     }
 
-    arr
+    fn op_remove_mut(&mut self, n_ops: usize, rng: &mut SmallRng) {
+        let len = self.len();
+        let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
+        let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
+
+        for (off, val) in offs.into_iter().zip(vals.into_iter()) {
+            match &mut self.val {
+                Array::Vector(arr) => arr.insert(off, val).unwrap(),
+                Array::VectorSafe(arr) => arr.insert(off, val).unwrap(),
+                Array::Vec(arr) => arr.insert(off, val),
+                Array::Im(arr) => arr.insert(off, val),
+            };
+        }
+
+        let len = self.len();
+        let offs = (0..n_ops).map(|i| rng.gen::<usize>() % (len - i));
+
+        let start = time::Instant::now();
+        for off in offs {
+            match &mut self.val {
+                Array::Vector(arr) => {
+                    arr.remove_mut(off).unwrap();
+                }
+                Array::VectorSafe(arr) => {
+                    arr.remove_mut(off).unwrap();
+                }
+                Array::Vec(arr) => {
+                    arr.remove(off);
+                }
+                Array::Im(arr) => {
+                    arr.remove(off);
+                }
+            };
+        }
+        let elapsed = start.elapsed();
+
+        self.stats.insert("remove_mut", (elapsed, n_ops));
+    }
+
+    fn op_update(&mut self, n_ops: usize, rng: &mut SmallRng) {
+        let len = self.len();
+        let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
+        let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
+
+        let start = time::Instant::now();
+        for (off, val) in offs.into_iter().zip(vals.into_iter()) {
+            match &mut self.val {
+                Array::Vector(arr) => {
+                    arr.update(off, val).unwrap();
+                }
+                Array::VectorSafe(arr) => {
+                    arr.update(off, val).unwrap();
+                }
+                Array::Vec(arr) => arr[off] = val,
+                Array::Im(arr) => arr[off] = val,
+            };
+        }
+        let elapsed = start.elapsed();
+
+        self.stats.insert("update", (elapsed, n_ops));
+    }
+
+    fn op_update_mut(&mut self, n_ops: usize, rng: &mut SmallRng) {
+        let len = self.len();
+        let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
+        let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
+
+        let start = time::Instant::now();
+        for (off, val) in offs.into_iter().zip(vals.into_iter()) {
+            match &mut self.val {
+                Array::Vector(arr) => {
+                    arr.update_mut(off, val).unwrap();
+                }
+                Array::VectorSafe(arr) => {
+                    arr.update_mut(off, val).unwrap();
+                }
+                Array::Vec(arr) => arr[off] = val,
+                Array::Im(arr) => arr[off] = val,
+            };
+        }
+        let elapsed = start.elapsed();
+
+        self.stats.insert("update_mut", (elapsed, n_ops));
+    }
+
+    fn op_get(&mut self, n_ops: usize, rng: &mut SmallRng) {
+        let len = self.len();
+        let offs = (0..n_ops).map(|_| rng.gen::<usize>() % len);
+
+        let start = time::Instant::now();
+        for off in offs {
+            match &mut self.val {
+                Array::Vector(val) => val.get(off).unwrap(),
+                Array::VectorSafe(val) => val.get(off).unwrap(),
+                Array::Vec(val) => val.get(off).unwrap(),
+                Array::Im(val) => val.get(off).unwrap(),
+            };
+        }
+        let elapsed = start.elapsed();
+
+        self.stats.insert("get", (elapsed, n_ops));
+    }
+
+    fn op_iter(&mut self, n_ops: usize) -> usize {
+        let start = time::Instant::now();
+        let mut count = 0_usize;
+        for _i in 0..n_ops {
+            let v: Vec<&T> = match &mut self.val {
+                Array::Vector(val) => val.iter().collect(),
+                Array::VectorSafe(val) => val.iter().collect(),
+                Array::Vec(val) => val.iter().collect(),
+                Array::Im(val) => val.iter().collect(),
+            };
+            count += v.len();
+        }
+        let elapsed = start.elapsed();
+
+        self.stats.insert("iter", (elapsed, count));
+        count
+    }
+
+    fn op_split_append(&mut self, n_ops: usize, rng: &mut SmallRng) {
+        let len = self.len();
+        let offs = (0..n_ops).map(|_| rng.gen::<usize>() % len);
+
+        let mut split_off_dur = time::Duration::default();
+        let mut append_dur = time::Duration::default();
+
+        for off in offs {
+            match &mut self.val {
+                Array::Vector(val) => {
+                    let start = time::Instant::now();
+                    let a = val.split_off(off).unwrap();
+                    split_off_dur += start.elapsed();
+
+                    let start = time::Instant::now();
+                    val.append(a);
+                    append_dur += start.elapsed();
+
+                    *val = val.rebalance(true).unwrap();
+                }
+                Array::VectorSafe(val) => {
+                    let start = time::Instant::now();
+                    let a = val.split_off(off).unwrap();
+                    split_off_dur += start.elapsed();
+
+                    let start = time::Instant::now();
+                    val.append(a);
+                    append_dur += start.elapsed();
+
+                    *val = val.rebalance(true).unwrap();
+                }
+                Array::Vec(val) => {
+                    let start = time::Instant::now();
+                    let mut a = val.split_off(off);
+                    split_off_dur += start.elapsed();
+
+                    let start = time::Instant::now();
+                    val.append(&mut a);
+                    append_dur += start.elapsed();
+                }
+                Array::Im(val) => {
+                    let start = time::Instant::now();
+                    let a = val.split_off(off);
+                    split_off_dur += start.elapsed();
+
+                    let start = time::Instant::now();
+                    val.append(a);
+                    append_dur += start.elapsed();
+                }
+            }
+        }
+
+        self.stats.insert("split_off", (split_off_dur, n_ops));
+        self.stats.insert("append", (append_dur, n_ops));
+    }
 }

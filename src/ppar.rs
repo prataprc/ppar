@@ -337,6 +337,7 @@ where
         T: Clone,
     {
         let other = if other.leaf_cap != self.leaf_cap {
+            println!("append long");
             let arr: Vec<T> = other.into();
             Vector::from_slice(&arr, Some(self.leaf_cap))
         } else {

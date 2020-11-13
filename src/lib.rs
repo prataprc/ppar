@@ -14,6 +14,7 @@
 //! * When shared ownership across concurrent threads.
 //! * To support undo/redo operation for array modifications.
 //! * When splitting up of array and/or joining arrays are frequently done.
+//! * Lazy clone of array using copy-on-write.
 //!
 //! Ownership and Cloning
 //! =====================

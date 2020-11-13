@@ -217,7 +217,6 @@ fn test_iter() {
     let arr = Vector::from_slice(&vals, None);
     let iter_vals: Vec<u64> = arr.iter().map(|x| *x).collect();
 
-    println!("{:?}", iter_vals);
     assert_eq!(vals, iter_vals);
 }
 
@@ -231,7 +230,6 @@ fn test_into_iter() {
     let arr = Vector::from_slice(&vals, None);
     let iter_vals: Vec<u64> = arr.into_iter().collect();
 
-    println!("{:?}", iter_vals);
     assert_eq!(vals, iter_vals);
 }
 
