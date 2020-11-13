@@ -241,17 +241,21 @@ fn test_rebalance() {
     println!("test_rebalance seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let mut arr = Vector::new();
-    let mut refv: Vec<u64> = vec![];
+    for _ in 0..10 {
+        let mut arr = Vector::new();
+        arr.set_leaf_size(1024);
+        let mut refv: Vec<u64> = vec![];
 
-    for _i in 0..10_000 {
-        arr = arr.rebalance(false).unwrap();
+        for _i in 0..10_000 {
+            let packed: bool = rng.gen();
+            arr = arr.rebalance(packed).unwrap();
 
-        let val = rng.gen::<u64>();
-        refv.push(val);
-        arr.insert(0, val).unwrap();
+            let val = rng.gen::<u64>();
+            refv.push(val);
+            arr.insert(0, val).unwrap();
+        }
+
+        refv.reverse();
+        validate(&arr, &refv);
     }
-
-    refv.reverse();
-    validate(&arr, &refv);
 }

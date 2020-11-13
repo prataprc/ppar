@@ -91,6 +91,7 @@ macro_rules! initialize {
             let mut arr = ppar::$ref::Vector::<T>::new();
             let k = std::mem::size_of::<T>();
             let leaf_cap = *uns.choose(&[k * 100, k * 1000, k * 10000]).unwrap();
+            println!("leaf_cap: {}", leaf_cap);
             arr.set_leaf_size(leaf_cap);
             arr.set_auto_rebalance(true);
 
@@ -143,8 +144,6 @@ where
     IntoIter,
     Iter,
     SplitOff(Index),
-    Append(Vec<T>),
-    Rebalance(bool),
 }
 
 impl<T> Op<T>
@@ -167,8 +166,6 @@ where
             Op::IntoIter => "into_iter",
             Op::Iter => "iter",
             Op::SplitOff(_) => "split_off",
-            Op::Append(_) => "append",
-            Op::Rebalance(_) => "rebalance",
         };
         let val = counts.get(key).map(|v| v + 1).unwrap_or(1);
         counts.insert(key, val);
@@ -296,18 +293,12 @@ macro_rules! fuzzy_ops {
                         assert_eq!(a, b);
                     }
                     Op::SplitOff(Index(off)) if off < arr.len() => {
-                        let a: Vec<T> = arr.split_off(off).unwrap().into();
-                        let b = vec.split_off(off);
-                        assert_eq!(a, b);
+                        let a = arr.split_off(off).unwrap();
+                        arr.append(a);
+                        let mut b = vec.split_off(off);
+                        vec.append(&mut b);
                     }
                     Op::SplitOff(Index(off)) => assert!(arr.split_off(off).is_err()),
-                    Op::Append(mut other) => {
-                        arr.append(ppar::$ref::Vector::from_slice(&other, None));
-                        vec.append(&mut other);
-                    }
-                    Op::Rebalance(packed) => {
-                        arr = arr.rebalance(packed).unwrap();
-                    }
                 }
             }
 
