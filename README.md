@@ -22,6 +22,8 @@ Here is a quick list of situation that might require using `ppar`.
 * When splitting up of array and/or joining arrays are frequently done.
 * Lazy clone of array using copy-on-write.
 
+**Check out our [performance metric](#performance-metric)**
+
 Algorithm
 ---------
 
@@ -32,7 +34,7 @@ To be more precise, intermediate nodes in the tree are organised similar
 to rope structure, as a tuple of `(weight, left, right)` where weight is
 the sum of all items present in the leaf-nodes under the left-branch.
 
-A list of alternatives can be found [here][alternate-solutions]. If you
+A list of alternatives can be found [here](#alternate-solutions). If you
 find good alternatives please add it to the list and raise a PR.
 
 If you are planning to use `ppar` for your project, do let us know.
@@ -80,13 +82,41 @@ Contributions
   * execute `perf.sh` for performance report.
 * [Developer certificate of origin][dco] is preferred.
 
-Benchmark
----------
+Performance metric
+------------------
 
-On a 2008 core2-duo machine with 8GB RAM.
+On a 2008 core2-duo machine with 8GB RAM. The measurements are taken using
+the following command and all the numbers are **op** Vs **latency**.
+
+```bash
+cargo run --release --bin perf --features=perf -- --load 100000 --ops 10000
+```
 
 ![reads](./reports/2020-11-13/read-ops.png)
 ![write](./reports/2020-11-13/write-ops.png)
+
+We are loading the array with an initial data set of `100_000` u64 numbers.
+Then applying each operation in a tight loop, measuring the elapsed time
+for the entire loop and finally computing per-op latency. `insert`,
+`insert_mut`, `remove`, `remove_mut`, `update`, `update_mut`, and `get` use
+random offset into the array. For iteration, we compute the elapsed time
+for iterating each item.
+
+* Using the logarithm scale implies an order-of-magniture difference in
+  performance.
+* Between `arc` and `rc` variant of `ppar`, performance difference is not much.
+  Though it might make a difference for cache-optimized algorithms.
+* `ppar` gains order-of-magniture improvent over `vec` and `im` for **insert**,
+  **remove**, **load**, **split**, **append**, **clone** operations.
+* And it falls behind on **update**, **get**, **iter** operations. But it may
+  be worth noting that where-ever it falls behind it is still on the lower end
+  of the log-scale, that is, the difference is well within 100ns.
+
+It is also worth noting that, maximum size of the operated data-set is less
+than 2MB, which means the entire array footprint can be held inside the
+CPU cache. As far as my understanding goes, when we increase the size of the
+array, the performance difference will only be more pronounced, that is, fast-op
+might look faster and slow-op might look slower.
 
 Alternate solutions
 -------------------
