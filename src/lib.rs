@@ -98,9 +98,13 @@ macro_rules! err_at {
 pub mod arc;
 pub mod rc;
 
-/// Leaf node shall not exceed this default size, refer
-/// [Vector::set_leaf_size] for optimal configuration.
+/// Leaf node shall not exceed this default size.
+///
+/// Refer `Vector::set_leaf_size` for optimal configuration.
 pub const LEAF_CAP: usize = 10 * 1024; // in bytes.
+
+/// Threshold on tree depth, beyond which auto-rebalance will kick in.
+pub const REBALANCE_THRESHOLD: usize = 30;
 
 /// Type alias for Result return type, used by this package.
 pub type Result<T> = result::Result<T, Error>;

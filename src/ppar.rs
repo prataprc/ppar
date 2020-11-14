@@ -301,8 +301,8 @@ where
     /// After the call, the original vector will be left containing the
     /// elements [0, at) with its previous capacity unchanged.
     ///
-    /// Call [Self::rebalance] on `self` and/or the returned vector to
-    /// make the vectors fully balanced.
+    /// Optionally, application can call [Self::rebalance] on `self` and
+    /// the returned vector to make the vectors fully balanced.
     pub fn split_off(&mut self, off: usize) -> Result<Vector<T>>
     where
         T: Clone,
@@ -946,7 +946,7 @@ impl Rebalance {
 
     fn can_rebalance(&self, depth: usize) -> bool {
         match depth {
-            n if n < 30 => false,
+            n if n < crate::REBALANCE_THRESHOLD => false,
             _ if (depth as f64) > (self.n_leafs.log2() * 3_f64) => true,
             _ => false,
         }
