@@ -93,7 +93,9 @@ cargo run --release --bin perf --features=perf -- --load 100000 --ops 10000
 ```
 
 ![reads](./reports/2020-11-13/read-ops.png)
+<sup>Lower numbers are better</sup>
 ![write](./reports/2020-11-13/write-ops.png)
+<sup>Lower number are better</sup>
 
 We are loading the array with an initial data set of `100_000` u64 numbers.
 Then applying each operation in a tight loop, measuring the elapsed time
