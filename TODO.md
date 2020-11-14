@@ -6,3 +6,4 @@
 * Add dependency graph to README.md.
 * License validation.
 * Rustdoc, md-doc spell checking and hyper-link sanity.
+* Add concurrency performance benchmark under `src/bin/perf.rs`.

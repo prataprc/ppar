@@ -7,8 +7,6 @@ use std::{fmt, thread};
 
 use ppar;
 
-// TODO: arbitrary auto-rebalance
-
 #[macro_export]
 macro_rules! pp {
     ($($arg:expr),+ => $val:expr) => {
