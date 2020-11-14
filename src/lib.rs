@@ -51,11 +51,6 @@ use std::{error, fmt, result};
 ///
 /// ```ignore
 /// use crate::Error;
-/// err_at!(Error::Invalid(String::default(), "bad argument"));
-/// ```
-///
-/// ```ignore
-/// use crate::Error;
 /// err_at!(Invalid, msg: format!("bad argument"));
 /// ```
 ///
