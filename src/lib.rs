@@ -45,25 +45,25 @@
 
 use std::{error, fmt, result};
 
-/// Short form to compose Error values.
-///
-/// Here are few possible ways:
-///
-/// ```ignore
-/// use crate::Error;
-/// err_at!(Invalid, msg: format!("bad argument"));
-/// ```
-///
-/// ```ignore
-/// use crate::Error;
-/// err_at!(Invalid, std::io::read(buf));
-/// ```
-///
-/// ```ignore
-/// use crate::Error;
-/// err_at!(Invalid, std::fs::read(file_path), format!("read failed"));
-/// ```
-///
+// Short form to compose Error values.
+//
+// Here are few possible ways:
+//
+// ```ignore
+// use crate::Error;
+// err_at!(Invalid, msg: format!("bad argument"));
+// ```
+//
+// ```ignore
+// use crate::Error;
+// err_at!(Invalid, std::io::read(buf));
+// ```
+//
+// ```ignore
+// use crate::Error;
+// err_at!(Invalid, std::fs::read(file_path), format!("read failed"));
+// ```
+//
 macro_rules! err_at {
     ($v:ident, msg: $($arg:expr),+) => {{
         let prefix = format!("{}:{}", file!(), line!());
