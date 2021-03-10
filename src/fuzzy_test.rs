@@ -47,7 +47,7 @@ fn test_fuzzy() {
     let mut map: BTreeMap<*const u8, u32> = BTreeMap::new();
     for (id, (ptrs, total_nodes)) in rets.into_iter().enumerate() {
         for ptr in ptrs.clone().into_iter() {
-            let n = map.get(&ptr).map(|x| *x).unwrap_or(0);
+            let n = map.get(&ptr).copied().unwrap_or(0);
             map.insert(ptr, n + 1);
         }
         println!(
@@ -71,7 +71,7 @@ macro_rules! initialize {
             let bytes = rng.gen::<[u8; 32]>();
             let mut uns = Unstructured::new(&bytes);
 
-            let mut arr = crate::$ref::Vector::<T>::new();
+            let mut arr = crate::$ref::Vector::<T>::default();
 
             let k = std::mem::size_of::<T>();
             let leaf_cap = *uns.choose(&[k * 10, k * 100, k * 1000, k * 10000]).unwrap();

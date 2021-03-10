@@ -11,7 +11,7 @@ use ppar::arc::Vector;
 fn bench_prepend(b: &mut Bencher) {
     let seed: u128 = random();
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
-    let mut arr: Vector<u64> = Vector::new();
+    let mut arr: Vector<u64> = Vector::default();
     b.iter(|| arr.insert(0, rng.gen::<u64>()).unwrap());
 
     let ratio = mem_ratio(8, arr.footprint(), arr.len());
@@ -22,7 +22,7 @@ fn bench_prepend(b: &mut Bencher) {
 fn bench_append(b: &mut Bencher) {
     let seed: u128 = random();
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
-    let mut arr: Vector<u64> = Vector::new();
+    let mut arr: Vector<u64> = Vector::default();
     b.iter(|| arr.insert(arr.len(), rng.gen::<u64>()).unwrap());
 
     let ratio = mem_ratio(8, arr.footprint(), arr.len());
@@ -34,7 +34,7 @@ fn bench_insert_rand(b: &mut Bencher) {
     let seed: u128 = random();
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let mut arr: Vector<u64> = Vector::new();
+    let mut arr: Vector<u64> = Vector::default();
     b.iter(|| {
         let off = rng.gen::<usize>() % (arr.len() + 1);
         arr.insert(off, rng.gen::<u64>()).unwrap()
@@ -49,7 +49,7 @@ fn bench_insert_rand(b: &mut Bencher) {
 fn bench_get_100K(b: &mut Bencher) {
     let seed: u128 = random();
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
-    let mut arr: Vector<u64> = Vector::new();
+    let mut arr: Vector<u64> = Vector::default();
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);
         arr.insert(off, rng.gen::<u64>()).unwrap()
@@ -68,7 +68,7 @@ fn bench_get_100K(b: &mut Bencher) {
 fn bench_update_100K(b: &mut Bencher) {
     let seed: u128 = random();
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
-    let mut arr: Vector<u64> = Vector::new();
+    let mut arr: Vector<u64> = Vector::default();
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);
         arr.insert(off, rng.gen::<u64>()).unwrap()
@@ -89,7 +89,7 @@ fn bench_delete_100K(b: &mut Bencher) {
     // let seed: u128 = 165591759058987334402931296907057276118;
     println!("seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
-    let mut arr: Vector<u64> = Vector::new();
+    let mut arr: Vector<u64> = Vector::default();
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);
         arr.insert(off, rng.gen::<u64>()).unwrap();
@@ -110,7 +110,7 @@ fn bench_clone(b: &mut Bencher) {
     // let seed: u128 = 165591759058987334402931296907057276118;
     println!("seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
-    let mut arr: Vector<u64> = Vector::new();
+    let mut arr: Vector<u64> = Vector::default();
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);
         arr.insert(off, rng.gen::<u64>()).unwrap();

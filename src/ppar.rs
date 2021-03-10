@@ -3,6 +3,8 @@ use std::{borrow::Borrow, mem};
 use super::*;
 use crate::{Error, Result};
 
+// TODO: replace assert!() with debug_assert!()
+
 /// Persistent array using rope-data-structure.
 pub struct Vector<T>
 where
@@ -81,12 +83,8 @@ where
     }
 }
 
-impl<T> Vector<T>
-where
-    T: Sized,
-{
-    /// Create a new empty Vector.
-    pub fn new() -> Vector<T> {
+impl<T> Default for Vector<T> {
+    fn default() -> Vector<T> {
         Vector {
             len: 0,
             root: Node::empty_leaf(),
@@ -94,7 +92,12 @@ where
             leaf_cap: crate::LEAF_CAP,
         }
     }
+}
 
+impl<T> Vector<T>
+where
+    T: Sized,
+{
     /// Construct a new vector with an initial array of values.
     pub fn from_slice(slice: &[T], leaf_node_size: Option<usize>) -> Vector<T>
     where
@@ -108,7 +111,7 @@ where
 
         let depth = (leafs.len() as f64).log2().ceil() as usize;
         let (root, _) = Node::build_bottoms_up(depth, &mut leafs);
-        assert!(leafs.len() == 0);
+        assert!(leafs.is_empty());
 
         Vector {
             len: slice.len(),
@@ -145,8 +148,15 @@ where
 {
     /// Return the length of the vector, that is, number of elements in the
     /// vector.
+    #[inline]
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    /// Return whether empty vector
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Return the memory foot-print for this instance.
@@ -206,7 +216,7 @@ where
             let packed = false;
             let force = false;
             let (root, _) =
-                Node::auto_rebalance(Ref::clone(&self.root), depth, packed, force, &rn)?;
+                Node::auto_rebalance(Ref::clone(&self.root), depth, packed, force, &rn);
 
             self.root = root;
             self.len += 1;
@@ -309,26 +319,30 @@ where
     where
         T: Clone,
     {
-        if off > self.len {
-            err_at!(IndexFail, msg: "offset {} out of bounds", off)
-        } else if off == self.len {
-            Ok(Vector {
+        let val = match off {
+            off if off > self.len => {
+                err_at!(IndexFail, msg: "offset {} out of bounds", off)?
+            }
+            off if off == self.len => Vector {
                 len: 0,
                 root: Node::empty_leaf(),
                 auto_rebalance: self.auto_rebalance,
                 leaf_cap: self.leaf_cap,
-            })
-        } else {
-            let (node, root, n) = self.root.split_off(off, self.len);
-            self.root = node;
-            self.len -= n;
-            Ok(Vector {
-                len: n,
-                root,
-                auto_rebalance: self.auto_rebalance,
-                leaf_cap: self.leaf_cap,
-            })
-        }
+            },
+            off => {
+                let (node, root, n) = self.root.split_off(off, self.len);
+                self.root = node;
+                self.len -= n;
+                Vector {
+                    len: n,
+                    root,
+                    auto_rebalance: self.auto_rebalance,
+                    leaf_cap: self.leaf_cap,
+                }
+            }
+        };
+
+        Ok(val)
     }
 
     /// Join `other` Vector into this vector.
@@ -364,7 +378,7 @@ where
     {
         let rn = Rebalance::new(self);
         let root = Ref::clone(&self.root);
-        let (root, _depth) = Node::auto_rebalance(root, 0, packed, true, &rn)?;
+        let (root, _depth) = Node::auto_rebalance(root, 0, packed, true, &rn);
         let val = Vector {
             len: self.len,
             root,
@@ -465,7 +479,7 @@ where
                 } else {
                     other
                 };
-                if other.len() > 0 {
+                if !other.is_empty() {
                     Some(Node::Z {
                         data: other.to_vec(),
                     })
@@ -524,7 +538,7 @@ where
             Node::Z { data } => (Self::split_insert(data, off, val), 2),
         };
 
-        let (node, depth) = Node::auto_rebalance(node, depth, false, false, rn)?;
+        let (node, depth) = Node::auto_rebalance(node, depth, false, false, rn);
 
         Ok((node, depth))
     }
@@ -747,23 +761,23 @@ where
         packed: bool,
         force: bool,
         rn: &Rebalance,
-    ) -> Result<(Ref<Node<T>>, usize)>
+    ) -> (Ref<Node<T>>, usize)
     where
         T: Clone,
     {
-        let doit = force || (rn.auto_rebalance == true) && rn.can_rebalance(depth);
+        let doit = force || rn.auto_rebalance && rn.can_rebalance(depth);
 
         match doit {
-            false => Ok((node, depth)),
+            false => (node, depth),
             true => {
                 let mut leafs = Node::collect_leaf_nodes(node, packed, rn.leaf_cap);
                 leafs.reverse();
 
                 let depth = (leafs.len() as f64).log2().ceil() as usize;
                 let (nroot, _) = Node::build_bottoms_up(depth, &mut leafs);
-                assert!(leafs.len() == 0);
+                assert!(leafs.is_empty());
 
-                Ok((nroot, depth))
+                (nroot, depth)
             }
         }
     }
@@ -780,7 +794,7 @@ where
         let mut node = root;
         let leafs = loop {
             match node.borrow() {
-                Node::Z { .. } if stack.len() == 0 => {
+                Node::Z { .. } if stack.is_empty() => {
                     acc.push(Ref::clone(&node));
                     break acc;
                 }
@@ -801,10 +815,11 @@ where
             for leaf in leafs.into_iter() {
                 match packed_leafs.last_mut() {
                     None => packed_leafs.push(leaf.cow()),
-                    Some(last) => match last.pack(leaf.borrow(), cap) {
-                        Some(next) => packed_leafs.push(next),
-                        None => (),
-                    },
+                    Some(last) => {
+                        if let Some(next) = last.pack(leaf.borrow(), cap) {
+                            packed_leafs.push(next)
+                        }
+                    }
                 }
             }
             packed_leafs.into_iter().map(Ref::new).collect()

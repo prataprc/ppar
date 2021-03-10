@@ -4,8 +4,8 @@ use super::*;
 
 #[test]
 fn test_new() {
-    let arr: Vector<u64> = Vector::new();
-    assert!(arr.len() == 0);
+    let arr: Vector<u64> = Vector::default();
+    assert!(arr.is_empty());
     println!("is thread-safe {}", arr.is_thread_safe());
 }
 
@@ -16,20 +16,20 @@ fn test_crud() {
     println!("test_crud seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let ops = [0, 1, 2, 3, 10, 100, 1000, 10_000, 1000_000];
+    let ops = [0, 1, 2, 3, 10, 100, 1000, 10_000, 1_000_000];
     for n in ops.iter() {
-        let mut arr = Vector::new();
+        let mut arr = Vector::default();
         let mut refv = vec![];
 
         for _ in 0..*n {
             match rng.gen::<u8>() % 7 {
                 // get
-                0 if arr.len() > 0 => {
+                0 if !arr.is_empty() => {
                     let off = rng.gen::<usize>() % arr.len();
                     assert_eq!(refv[off], *arr.get(off).unwrap());
                 }
                 // update
-                1 if arr.len() > 0 => {
+                1 if !arr.is_empty() => {
                     let off = rng.gen::<usize>() % arr.len();
                     let val = rng.gen::<u64>();
 
@@ -39,7 +39,7 @@ fn test_crud() {
                     assert_eq!(arr.len(), n);
                 }
                 // update mut
-                2 if arr.len() > 0 => {
+                2 if !arr.is_empty() => {
                     let off = rng.gen::<usize>() % arr.len();
                     let val = rng.gen::<u64>();
 
@@ -49,7 +49,7 @@ fn test_crud() {
                     assert_eq!(arr.len(), n);
                 }
                 // remove
-                3 if arr.len() > 0 => {
+                3 if !arr.is_empty() => {
                     let off = rng.gen::<usize>() % arr.len();
 
                     refv.remove(off);
@@ -58,7 +58,7 @@ fn test_crud() {
                     assert_eq!(arr.len(), n - 1);
                 }
                 // remove mut
-                4 if arr.len() > 0 => {
+                4 if !arr.is_empty() => {
                     let off = rng.gen::<usize>() % arr.len();
 
                     refv.remove(off);
@@ -99,12 +99,12 @@ fn test_split_off() {
     println!("test_split_off seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let ns = [10_000, 1000_000, 10_000_000];
+    let ns = [10_000, 1_000_000, 10_000_000];
     for n in ns.iter() {
         let mut refv: Vec<u64> = (0..*n).collect();
         let mut arr = Vector::from_slice(&refv, Some(128));
 
-        while arr.len() > 0 {
+        while !arr.is_empty() {
             let off = rng.gen::<usize>() % arr.len();
             // println!("test_split_off off:{} len:{}", off, arr.len());
             let (a, b) = (arr.split_off(off).unwrap(), refv.split_off(off));
@@ -143,9 +143,9 @@ fn test_prepend() {
     println!("test_prepend seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let ops = [10_000, 1000_000];
+    let ops = [10_000, 1_000_000];
     for n in ops.iter() {
-        let mut arr = Vector::new();
+        let mut arr = Vector::default();
         let mut refv: Vec<u64> = vec![];
 
         for i in 0..*n {
@@ -166,7 +166,7 @@ fn test_delete_skew() {
     println!("test_delete_skew seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let mut arr: Vector<u64> = Vector::new();
+    let mut arr: Vector<u64> = Vector::default();
     let mut refv = vec![];
 
     for _ in 0..100_000 {
@@ -191,7 +191,7 @@ fn test_from_slice() {
     println!("test_from_slice seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let vals: Vec<u64> = (0..1000_000).map(|_| rng.gen()).collect();
+    let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
     let arr = Vector::from_slice(&vals, None);
     validate(&arr, &vals);
 }
@@ -202,7 +202,7 @@ fn test_to_vec() {
     println!("test_from_slice seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let vals: Vec<u64> = (0..1000_000).map(|_| rng.gen()).collect();
+    let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
     let vect: Vec<u64> = Vector::from_slice(&vals, None).into();
     assert!(vals == vect);
 }
@@ -213,9 +213,9 @@ fn test_iter() {
     println!("test_iter seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let vals: Vec<u64> = (0..1000_000).map(|_| rng.gen()).collect();
+    let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
     let arr = Vector::from_slice(&vals, None);
-    let iter_vals: Vec<u64> = arr.iter().map(|x| *x).collect();
+    let iter_vals: Vec<u64> = arr.iter().copied().collect();
 
     assert_eq!(vals, iter_vals);
 }
@@ -226,7 +226,7 @@ fn test_into_iter() {
     println!("test_iter seed {}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-    let vals: Vec<u64> = (0..1000_000).map(|_| rng.gen()).collect();
+    let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
     let arr = Vector::from_slice(&vals, None);
     let iter_vals: Vec<u64> = arr.into_iter().collect();
 
@@ -240,7 +240,7 @@ fn test_rebalance() {
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     for _ in 0..10 {
-        let mut arr = Vector::new();
+        let mut arr = Vector::default();
         arr.set_leaf_size(1024);
         let mut refv: Vec<u64> = vec![];
 

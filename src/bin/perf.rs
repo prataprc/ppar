@@ -3,7 +3,8 @@ use structopt::StructOpt;
 
 use std::{collections::BTreeMap, time};
 
-use ppar;
+// TODO: fix command line option.
+// TODO: optional flag for im and vec benchmarking.
 
 #[macro_export]
 macro_rules! pp {
@@ -33,7 +34,7 @@ fn main() {
 
     let opts = Opt::from_args();
     let mut rng = {
-        let seed = opts.seed.unwrap_or(random());
+        let seed = opts.seed.unwrap_or_else(random);
         // let seed: u128 = 89704735013013664095413923566273445973;
         SmallRng::from_seed(seed.to_le_bytes())
     };
@@ -59,7 +60,7 @@ fn main() {
         perf.run(&mut rng);
         perf.rebalance(true);
         perf.pretty_print();
-        println!("")
+        println!()
     }
 }
 
@@ -85,14 +86,14 @@ where
     rand::distributions::Standard: rand::distributions::Distribution<T>,
 {
     fn new_vector(leaf_size: usize, auto_rebalance: bool) -> Self {
-        let mut arr = ppar::rc::Vector::<T>::new();
+        let mut arr = ppar::rc::Vector::<T>::default();
         arr.set_leaf_size(leaf_size)
             .set_auto_rebalance(auto_rebalance);
         Array::Vector(arr)
     }
 
     fn new_vector_safe(leaf_size: usize, auto_rebalance: bool) -> Self {
-        let mut arr = ppar::arc::Vector::<T>::new();
+        let mut arr = ppar::arc::Vector::<T>::default();
         arr.set_leaf_size(leaf_size)
             .set_auto_rebalance(auto_rebalance);
         Array::VectorSafe(arr)
@@ -136,7 +137,9 @@ where
     fn rebalance(&self, packed: bool) -> Option<Self> {
         match self {
             Array::Vector(arr) => Some(Array::Vector(arr.rebalance(packed).unwrap())),
-            Array::VectorSafe(arr) => Some(Array::VectorSafe(arr.rebalance(packed).unwrap())),
+            Array::VectorSafe(arr) => {
+                Some(Array::VectorSafe(arr.rebalance(packed).unwrap()))
+            }
             Array::Vec(_) => None,
             Array::Im(_) => None,
         }
@@ -172,9 +175,8 @@ where
     }
 
     fn rebalance(&mut self, packed: bool) {
-        match self.val.rebalance(packed) {
-            Some(val) => self.val = val,
-            None => (),
+        if let Some(val) = self.val.rebalance(packed) {
+            self.val = val
         }
     }
 
@@ -205,12 +207,9 @@ where
             Array::VectorSafe(val) => Some((val.footprint(), val.len())),
             _ => None,
         };
-        match fp {
-            Some((mem, n)) => {
-                let ratio = mem_ratio::<T>(mem, n);
-                println!("{:14} {}% {:?}", "mem-ratio", ratio, (mem, n));
-            }
-            None => (),
+        if let Some((mem, n)) = fp {
+            let ratio = mem_ratio::<T>(mem, n);
+            println!("{:14} {}% {:?}", "mem-ratio", ratio, (mem, n));
         }
     }
 
