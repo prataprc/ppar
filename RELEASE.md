@@ -1,3 +1,13 @@
+0.3.0
+=====
+
+* Rustdoc
+* rust-fmt fix column width to 90.
+* move bin/fuzzy.rs to unit test `fuzzy_test.rs`.
+* clippy fixes.
+* modularize bin/perf.rs for ppar, im and std-vec benchmarks.
+* package management files and ci-scripts.
+
 Release Checklist
 =================
 

@@ -1,6 +1,6 @@
 [package]
 name = "ppar"
-version = "0.2.0"
+version = "0.3.0"
 description = "Persistent immutable array"
 repository = "https://github.com/bnclabs/ppar"
 documentation = "https://docs.rs/ppar"
