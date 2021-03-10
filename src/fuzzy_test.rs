@@ -4,8 +4,6 @@ use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
 use std::collections::BTreeMap;
 use std::{fmt, thread};
 
-use super::*;
-
 #[test]
 fn test_fuzzy() {
     let seed: u128 = random();
