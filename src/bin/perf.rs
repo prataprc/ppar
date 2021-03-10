@@ -3,9 +3,6 @@ use structopt::StructOpt;
 
 use std::{collections::BTreeMap, time};
 
-// TODO: fix command line option.
-// TODO: optional flag for im and vec benchmarking.
-
 #[macro_export]
 macro_rules! pp {
     ($($arg:expr),+ => $val:expr) => {
@@ -19,11 +16,17 @@ pub struct Opt {
     #[structopt(long = "seed")]
     seed: Option<u128>,
 
-    #[structopt(long = "load", default_value = "1000000")] // default 1M
-    load: usize,
+    #[structopt(long = "loads", default_value = "1000000")] // default 1M
+    loads: usize,
 
     #[structopt(long = "ops", default_value = "1000000")] // default 1M
     ops: usize,
+
+    #[structopt(long = "im")]
+    im: bool,
+
+    #[structopt(long = "std-vec")]
+    std_vec: bool,
 
     #[structopt(long = "leaf-size")]
     leaf_size: Option<usize>,
@@ -39,22 +42,19 @@ fn main() {
         SmallRng::from_seed(seed.to_le_bytes())
     };
 
-    let arrs: Vec<(&str, Array<u64>)> = vec![
-        (
-            "ppar::rc::Vector ",
-            Array::new_vector(opts.leaf_size.unwrap_or(ppar::LEAF_CAP), true),
-        ),
-        (
-            "ppar::arc::Vector",
-            Array::new_vector_safe(opts.leaf_size.unwrap_or(ppar::LEAF_CAP), true),
-        ),
-        ("im::Vector       ", Array::new_im()),
-        ("std::vec::Vec    ", Array::new_vec()),
-    ];
+    let arrs = if opts.im {
+        vec![(Array::<u64>::new_im(), "im::Vector")]
+    } else if opts.std_vec {
+        vec![(Array::<u64>::new_vec(), "std::vec::Vec")]
+    } else {
+        let one = Array::new_vector(opts.leaf_size.unwrap_or(ppar::LEAF_CAP), true);
+        let two = Array::new_vector_safe(opts.leaf_size.unwrap_or(ppar::LEAF_CAP), true);
+        vec![(one, "ppar::rc::Vector"), (two, "ppar::arc::Vector")]
+    };
 
-    for (opts, (s, arr)) in repeat(opts).take(4).zip(arrs.into_iter()) {
+    for (opts, (arr, log)) in repeat(opts).take(arrs.len()).zip(arrs.into_iter()) {
         let mut perf = Perf::new(arr, opts);
-        println!("Performance report for {}", s);
+        println!("Performance report for {}", log);
         println!("--------------------------------------");
         perf.load(&mut rng);
         perf.run(&mut rng);
@@ -182,7 +182,7 @@ where
 
     fn load(&mut self, rng: &mut SmallRng) {
         self.stats
-            .insert("load", self.val.load(self.opts.load, rng));
+            .insert("load", self.val.load(self.opts.loads, rng));
     }
 
     fn run(&mut self, rng: &mut SmallRng) {
