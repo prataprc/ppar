@@ -1,25 +1,25 @@
 [package]
 name = "ppar"
 version = "0.2.0"
-authors = ["prataprc <prataprc@gmail.com>"]
-edition = "2018"
 description = "Persistent immutable array"
-license = "MIT"
 repository = "https://github.com/bnclabs/ppar"
-readme = "./README.md"
-categories = ["data-structures"]
+documentation = "https://docs.rs/ppar"
 keywords = ["immutable", "persistent", "rope", "array", "concurrent"]
+categories = ["data-structures"]
+authors = ["prataprc <prataprc@gmail.com>"]
+license = "MIT"
+edition = "2018"
+readme = "./README.md"
 
-[lib]
-path = "./src/lib.rs"
+[profile.release]
+debug = true
+
+[profile.bench]
+debug = true
 
 [[bin]]
 name = "perf"
 required-features = ["perf"]
-
-[[bin]]
-name = "fuzzy"
-required-features = ["fuzzing"]
 
 [dependencies]
 arbitrary = { version = "0.4.7", features = ["derive"] }
@@ -34,4 +34,3 @@ rand = { version = "0.7.3", features = ["small_rng"]}
 
 [features]
 perf = ["structopt", "rand", "im", "im-rc"]
-fuzzing = ["structopt", "rand"]

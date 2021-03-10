@@ -44,12 +44,14 @@ where
     }
 }
 
-#[cfg(any(feature = "arbitrary", feature = "fuzzing", test))]
+#[cfg(any(feature = "arbitrary", test))]
 impl<T> arbitrary::Arbitrary for Vector<T>
 where
     T: Clone + arbitrary::Arbitrary,
 {
-    fn arbitrary(u: &mut arbitrary::unstructured::Unstructured) -> arbitrary::Result<Self> {
+    fn arbitrary(
+        u: &mut arbitrary::unstructured::Unstructured,
+    ) -> arbitrary::Result<Self> {
         let k = std::mem::size_of::<T>();
         let leaf_cap = *u.choose(&[k, k * 2, k * 100, k * 1000, k * 10000])?;
         let auto_reb = *u.choose(&[true, false])?; // auto_rebalance
@@ -374,14 +376,14 @@ where
 
     // return only nodes that is referenced in multiple-versions. and
     // the total number of nodes in the tree.
-    #[cfg(feature = "fuzzing")]
+    #[cfg(test)]
     pub fn fetch_multiversions(&self) -> (Vec<*const u8>, usize) {
         let mut acc = vec![];
         let n = self.root.fetch_multiversions(&mut acc);
         (acc, n)
     }
 
-    #[cfg(any(test, feature = "fuzzing"))]
+    #[cfg(test)]
     #[allow(dead_code)]
     pub fn pretty_print(&self) {
         self.root.pretty_print("".to_string(), self.len)
@@ -766,7 +768,11 @@ where
         }
     }
 
-    fn collect_leaf_nodes(root: Ref<Node<T>>, packed: bool, leaf_cap: usize) -> Vec<Ref<Node<T>>>
+    fn collect_leaf_nodes(
+        root: Ref<Node<T>>,
+        packed: bool,
+        leaf_cap: usize,
+    ) -> Vec<Ref<Node<T>>>
     where
         T: Clone,
     {
@@ -807,7 +813,10 @@ where
         }
     }
 
-    fn build_bottoms_up(depth: usize, leafs: &mut Vec<Ref<Node<T>>>) -> (Ref<Node<T>>, usize) {
+    fn build_bottoms_up(
+        depth: usize,
+        leafs: &mut Vec<Ref<Node<T>>>,
+    ) -> (Ref<Node<T>>, usize) {
         let (root, n) = match (depth, leafs.len()) {
             (0, 0) => (Ref::new(Node::Z { data: vec![] }), 0),
             (0, 1) | (1, 1) => {
@@ -886,7 +895,7 @@ where
     }
 
     // only used with src/bin/fuzzy program
-    #[cfg(feature = "fuzzing")]
+    #[cfg(test)]
     fn fetch_multiversions(&self, acc: &mut Vec<*const u8>) -> usize {
         match self {
             Node::M { left, right, .. } => {
@@ -907,7 +916,7 @@ where
         }
     }
 
-    #[cfg(any(test, feature = "fuzzing"))]
+    #[cfg(test)]
     #[allow(dead_code)]
     fn pretty_print(&self, mut prefix: String, len: usize) {
         match self {
@@ -1038,7 +1047,7 @@ fn max_leaf_items<T>(cap: usize) -> usize {
     (cap / s) + if cap % s == 0 { 0 } else { 1 }
 }
 
-#[cfg(any(feature = "fuzzing", test))]
+#[cfg(test)]
 pub fn validate<T>(arr: &Vector<T>, refv: &[T])
 where
     T: std::fmt::Debug + Clone + Eq + PartialEq,
@@ -1056,7 +1065,7 @@ where
     assert!(arr.get(arr.len()).is_err());
 }
 
-#[cfg(any(feature = "fuzzing", test))]
+#[cfg(test)]
 pub fn validate_mem_ratio(k: usize, mem: usize, n: usize) {
     match n {
         0 => assert!(mem < 1000, "n:{} footp:{}", n, mem),
@@ -1081,3 +1090,7 @@ pub fn validate_mem_ratio(k: usize, mem: usize, n: usize) {
 #[cfg(test)]
 #[path = "ppar_test.rs"]
 mod ppar_test;
+
+#[cfg(test)]
+#[path = "fuzzy_test.rs"]
+mod fuzzy_test;

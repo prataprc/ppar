@@ -1,55 +1,42 @@
 use arbitrary::{self, unstructured::Unstructured, Arbitrary};
 use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
-use structopt::StructOpt;
 
 use std::collections::BTreeMap;
 use std::{fmt, thread};
 
-use ppar;
+use super::*;
 
-#[macro_export]
-macro_rules! pp {
-    ($($arg:expr),+ => $val:expr) => {
-        println!("{:<30} : {:?}", format!($($arg),+), $val)
-    };
-}
+#[test]
+fn test_fuzzy() {
+    let seed: u128 = random();
+    // let seed: u128 = 148687161270367758201020080252240195663;
+    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
-/// Command line options.
-#[derive(Clone, StructOpt)]
-pub struct Opt {
-    #[structopt(long = "seed")]
-    seed: Option<u128>,
+    let n_loads: usize = [0, 1, 1000, 1_000_000, 10_000_000][rng.gen::<usize>() % 5];
+    let n_ops: usize = [0, 1, 1000, 1_000_000][rng.gen::<usize>() % 4];
+    let n_threads: usize = [1, 2, 4, 8, 16, 256, 1024][rng.gen::<usize>() % 7];
 
-    #[structopt(long = "load", default_value = "10000000")] // default 10M
-    load: usize,
+    println!(
+        "test_fuzzy seed:{} n_loads:{} n_ops:{} n_threads:{}",
+        seed, n_loads, n_ops, n_threads
+    );
 
-    #[structopt(long = "ops", default_value = "1000000")]
-    ops: usize,
-
-    #[structopt(long = "threads", default_value = "4")]
-    threads: usize,
-}
-
-fn main() {
-    let mut opts = Opt::from_args();
-    opts.seed = Some(opts.seed.unwrap_or(random()));
-    // opts.seed = Some(43412938081234232274443750093662763225);
-    println!("seed: {}", opts.seed.unwrap());
-
-    let rets: Vec<(Vec<*const u8>, usize)> = match opts.threads {
+    let rets: Vec<(Vec<*const u8>, usize)> = match n_threads {
         0 => unreachable!(),
         1 => {
-            let (arr, vec) = initialize_rc::<u64>(&opts);
-            vec![fuzzy_ops_rc(0, arr, vec, &opts).fetch_multiversions()]
+            let (arr, vec) = do_initial_rc::<u64>(seed, n_loads);
+            vec![do_incremental_rc(0, arr, vec, seed, n_ops, n_threads)
+                .fetch_multiversions()]
         }
         _ => {
-            let (arr, vec) = initialize_arc::<u64>(&opts);
+            let (arr, vec) = do_initial_arc::<u64>(seed, n_loads);
 
             let mut handles = vec![];
-            for i in 0..opts.threads {
+            for i in 0..n_threads {
                 let (arr, vec) = (arr.clone(), vec.clone());
-                let opts = opts.clone();
-                handles.push(thread::spawn(move || fuzzy_ops_arc(i, arr, vec, &opts)));
+                handles.push(thread::spawn(move || {
+                    do_incremental_arc(i, arr, vec, seed, n_ops, n_threads)
+                }));
             }
 
             handles
@@ -66,35 +53,36 @@ fn main() {
             map.insert(ptr, n + 1);
         }
         println!(
-            "thread-{} number of multi-reference nodes {} / {}",
+            "test_fuzzy thread-{} number of multi-reference nodes {} / {}",
             id,
             ptrs.len(),
             total_nodes
         );
     }
-    println!("total shared nodes {}", map.len());
+    println!("test_fuzzy total shared nodes {}", map.len());
 }
 
 macro_rules! initialize {
     ($func:ident, $ref:ident) => {
-        fn $func<T>(opts: &Opt) -> (ppar::$ref::Vector<T>, Vec<T>)
+        fn $func<T>(seed: u128, n_loads: usize) -> (crate::$ref::Vector<T>, Vec<T>)
         where
             T: fmt::Debug + Clone + Eq + PartialEq + Arbitrary,
             rand::distributions::Standard: rand::distributions::Distribution<T>,
         {
-            let mut rng = SmallRng::from_seed(opts.seed.unwrap().to_le_bytes());
+            let mut rng = SmallRng::from_seed(seed.to_le_bytes());
             let bytes = rng.gen::<[u8; 32]>();
             let mut uns = Unstructured::new(&bytes);
 
-            let mut arr = ppar::$ref::Vector::<T>::new();
+            let mut arr = crate::$ref::Vector::<T>::new();
+
             let k = std::mem::size_of::<T>();
-            let leaf_cap = *uns.choose(&[k * 100, k * 1000, k * 10000]).unwrap();
-            println!("leaf_cap: {}", leaf_cap);
+            let leaf_cap = *uns.choose(&[k * 10, k * 100, k * 1000, k * 10000]).unwrap();
+            println!("test_fuzzy leaf_cap: {}", leaf_cap);
             arr.set_leaf_size(leaf_cap);
             arr.set_auto_rebalance(true);
 
-            let prepend_load = opts.load / 2;
-            let append_load = opts.load - prepend_load;
+            let prepend_load = n_loads / 2;
+            let append_load = n_loads - prepend_load;
 
             let mut vec: Vec<T> = arr.clone().into();
             for _i in 0..prepend_load {
@@ -112,16 +100,16 @@ macro_rules! initialize {
 
             arr.set_auto_rebalance(uns.arbitrary().unwrap());
 
-            ppar::$ref::validate(&arr, &vec);
-            println!("fuzzy load {} items", arr.len());
+            crate::$ref::validate(&arr, &vec);
+            println!("test_fuzzy load {} items", arr.len());
 
             (arr, vec)
         }
     };
 }
 
-initialize!(initialize_arc, arc);
-initialize!(initialize_rc, rc);
+initialize!(do_initial_arc, arc);
+initialize!(do_initial_rc, rc);
 
 #[derive(Arbitrary)]
 enum Op<T>
@@ -183,18 +171,20 @@ macro_rules! fuzzy_ops {
     ($func:ident, $ref:ident) => {
         fn $func<T>(
             id: usize,
-            mut arr: ppar::$ref::Vector<T>,
+            mut arr: crate::$ref::Vector<T>,
             mut vec: Vec<T>,
-            opts: &Opt,
-        ) -> ppar::$ref::Vector<T>
+            seed: u128,
+            n_ops: usize,
+            n_threads: usize,
+        ) -> crate::$ref::Vector<T>
         where
             T: fmt::Debug + Clone + Eq + PartialEq + Arbitrary,
         {
-            let seed = opts.seed.unwrap() + (((id as u128) + 100) * 123);
+            let seed = seed + (((id as u128) + 100) * 123);
             let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
             let mut counts: BTreeMap<&'static str, usize> = BTreeMap::new();
-            for _ in 0..opts.ops {
+            for _ in 0..n_ops {
                 let op: Op<T> = {
                     let bytes: [u8; 32] = rng.gen();
                     let mut uns = Unstructured::new(&bytes);
@@ -205,7 +195,7 @@ macro_rules! fuzzy_ops {
 
                 match op {
                     Op::ToFromVec(leaf_size) => {
-                        let a = ppar::$ref::Vector::from_slice(&vec, Some(leaf_size));
+                        let a = crate::$ref::Vector::from_slice(&vec, Some(leaf_size));
                         let a: Vec<T> = a.into();
                         assert_eq!(a, vec);
                     }
@@ -227,11 +217,13 @@ macro_rules! fuzzy_ops {
                     Op::Insert(Index(off), val) => {
                         assert!(arr.insert(off, val.clone()).is_err());
                     }
-                    Op::InsertMut(Index(off), val) if opts.threads == 1 && off <= arr.len() => {
+                    Op::InsertMut(Index(off), val)
+                        if n_threads == 1 && off <= arr.len() =>
+                    {
                         arr.insert_mut(off, val.clone()).unwrap();
                         vec.insert(off, val);
                     }
-                    Op::InsertMut(Index(off), val) if opts.threads == 1 => {
+                    Op::InsertMut(Index(off), val) if n_threads == 1 => {
                         assert!(arr.insert_mut(off, val.clone()).is_err())
                     }
                     Op::InsertMut(_, _) => (),
@@ -243,12 +235,12 @@ macro_rules! fuzzy_ops {
                     Op::Remove(Index(off)) => {
                         assert!(arr.remove(off).is_err());
                     }
-                    Op::RemoveMut(Index(off)) if opts.threads == 1 && off < arr.len() => {
+                    Op::RemoveMut(Index(off)) if n_threads == 1 && off < arr.len() => {
                         let a = arr.remove_mut(off).unwrap();
                         let b = vec.remove(off);
                         assert_eq!(a, b);
                     }
-                    Op::RemoveMut(Index(off)) if opts.threads == 1 => {
+                    Op::RemoveMut(Index(off)) if n_threads == 1 => {
                         assert!(arr.remove_mut(off).is_err())
                     }
                     Op::RemoveMut(_) => (),
@@ -263,7 +255,9 @@ macro_rules! fuzzy_ops {
                     Op::Update(Index(off), val) => {
                         assert!(arr.update(off, val).is_err());
                     }
-                    Op::UpdateMut(Index(off), val) if opts.threads == 1 && off < arr.len() => {
+                    Op::UpdateMut(Index(off), val)
+                        if n_threads == 1 && off < arr.len() =>
+                    {
                         let a = arr.update(off, val.clone()).ok();
                         let b = vec.get(off).cloned().map(|x| {
                             vec[off] = val;
@@ -271,7 +265,7 @@ macro_rules! fuzzy_ops {
                         });
                         assert_eq!(a, b);
                     }
-                    Op::UpdateMut(Index(off), val) if opts.threads == 1 => {
+                    Op::UpdateMut(Index(off), val) if n_threads == 1 => {
                         assert!(arr.update(off, val).is_err())
                     }
                     Op::UpdateMut(_, _) => (),
@@ -300,17 +294,17 @@ macro_rules! fuzzy_ops {
                 }
             }
 
-            ppar::$ref::validate(&arr, &vec);
+            crate::$ref::validate(&arr, &vec);
 
             println!(
-                "validated thread-{} using {} ops with {} items",
+                "test_fuzzy validated thread-{} using {} ops with {} items",
                 id,
-                opts.ops,
+                n_ops,
                 arr.len()
             );
 
             for (k, v) in counts.iter() {
-                println!("{:14}: {}", k, v)
+                println!("test_fuzzy {:14}: {}", k, v)
             }
 
             arr
@@ -318,5 +312,5 @@ macro_rules! fuzzy_ops {
     };
 }
 
-fuzzy_ops!(fuzzy_ops_arc, arc);
-fuzzy_ops!(fuzzy_ops_rc, rc);
+fuzzy_ops!(do_incremental_arc, arc);
+fuzzy_ops!(do_incremental_rc, rc);
