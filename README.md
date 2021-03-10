@@ -73,15 +73,6 @@ The basic algorithm is fairly tight. Contributions are welcome to make the
 `ppar::Vector` type as rich as [std::vec::Vec][std_vector] and
 [im::Vector][im_vector].
 
-Contributions
--------------
-
-* Simple workflow. Fork, modify and raise a pull request.
-* Before making a PR,
-  * execute `check.sh` to pass unit-testing and fuzzy testing.
-  * execute `perf.sh` for performance report.
-* [Developer certificate of origin][dco] is preferred.
-
 Performance metric
 ------------------
 
@@ -120,11 +111,24 @@ CPU cache. As far as my understanding goes, when we increase the size of the
 array, the performance difference will only be more pronounced, that is, fast-op
 might look faster and slow-op might look slower.
 
-Alternate solutions
--------------------
+Useful links
+------------
 
-* [im][im]
-* [rpds][rpds]
+* [im][im] contains an alternate array implementation, among other things.
+* [rpds][rpds], another alternate implementation using ``RRB-Tree``.
+* [rope datastructure][rope] used by this package.
+
+Contributions
+-------------
+
+* Simple workflow. Fork - Modify - Pull request.
+* Before creating a PR,
+  * Run `make build` to confirm all versions of build is passing with
+    0 warnings and 0 errors.
+  * Run `check.sh` with 0 warnings, 0 errors and all testcases passing.
+  * Run `perf.sh` with 0 warnings, 0 errors and all testcases passing.
+  * [Install][spellcheck] and run `cargo spellcheck` to remove common spelling mistakes.
+* [Developer certificate of origin][dco] is preferred.
 
 [im]: https://github.com/bodil/im-rs
 [im_vector]: https://docs.rs/im/15.0.0/im/struct.Vector.html
@@ -136,3 +140,4 @@ Alternate solutions
 [rayon]: https://crates.io/crates/rayon
 [quickcheck]: https://crates.io/crates/quickcheck
 [dco]: https://developercertificate.org/
+[spellcheck]: https://github.com/drahnr/cargo-spellcheck
