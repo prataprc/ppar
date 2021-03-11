@@ -7,7 +7,6 @@ build:
 	cargo +stable test --no-run
 	# ... bench ...
 	cargo +nightly bench --no-run
-	# cargo +stable bench --no-run
 	# ... bins ...
 	cargo +nightly build --release --bin perf --features=perf
 	cargo +stable build --release --bin perf --features=perf

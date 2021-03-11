@@ -10,12 +10,10 @@ set -o xtrace
 exec_prg() {
     for i in {0..10};
     do
-        cargo +nightly test -- --nocapture || exit $?
-        cargo +nightly test --release -- --nocapture || exit $?
-        cargo +stable test -- --nocapture || exit $?
-        cargo +stable test --release -- --nocapture || exit $?
-        cargo +nightly bench -- --nocapture || exit $?
-        cargo +stable bench -- --nocapture || exit $?
+        date; time cargo +nightly test -- --nocapture || exit $?
+        date; time cargo +nightly test --release -- --nocapture || exit $?
+        date; time cargo +stable test -- --nocapture || exit $?
+        date; time cargo +stable test --release -- --nocapture || exit $?
     done
 }
 
