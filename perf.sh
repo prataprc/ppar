@@ -1,3 +1,5 @@
+#! /usr/bin/env bash
+
 exec > perf.out
 exec 2>&1
 
