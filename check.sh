@@ -8,7 +8,7 @@ exec 2>&1
 set -o xtrace
 
 exec_prg() {
-    for i in {0..10};
+    for i in {0..5};
     do
         date; time cargo +nightly test -- --nocapture || exit $?
         date; time cargo +nightly test --release -- --nocapture || exit $?
