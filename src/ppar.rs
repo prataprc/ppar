@@ -3,8 +3,6 @@ use std::{borrow::Borrow, mem};
 use super::*;
 use crate::{Error, Result};
 
-// TODO: replace assert!() with debug_assert!()
-
 /// Persistent array using rope-data-structure.
 pub struct Vector<T>
 where
@@ -113,7 +111,7 @@ where
 
         let depth = (leafs.len() as f64).log2().ceil() as usize;
         let (root, _) = Node::build_bottoms_up(depth, &mut leafs);
-        assert!(leafs.is_empty());
+        debug_assert!(leafs.is_empty());
 
         Vector {
             len: slice.len(),
@@ -777,7 +775,7 @@ where
 
                 let depth = (leafs.len() as f64).log2().ceil() as usize;
                 let (nroot, _) = Node::build_bottoms_up(depth, &mut leafs);
-                assert!(leafs.is_empty());
+                debug_assert!(leafs.is_empty());
 
                 (nroot, depth)
             }
@@ -1072,28 +1070,28 @@ where
     let k = std::mem::size_of::<T>();
     validate_mem_ratio(k, arr.footprint(), arr.len());
 
-    assert_eq!(refv.len(), arr.len());
-    assert_eq!(arr.len(), arr.root.len());
+    debug_assert_eq!(refv.len(), arr.len());
+    debug_assert_eq!(arr.len(), arr.root.len());
 
     for (off, val) in refv.iter().enumerate() {
-        assert_eq!(arr.get(off).unwrap(), val, "off-{}", off);
+        debug_assert_eq!(arr.get(off).unwrap(), val, "off-{}", off);
     }
 
-    assert!(arr.get(arr.len()).is_err());
+    debug_assert!(arr.get(arr.len()).is_err());
 }
 
 #[cfg(test)]
 pub fn validate_mem_ratio(k: usize, mem: usize, n: usize) {
     match n {
-        0 => assert!(mem < 1000, "n:{} footp:{}", n, mem),
+        0 => debug_assert!(mem < 1000, "n:{} footp:{}", n, mem),
         n if n < 200 => {
             let cap = k * n * 3 + 1000;
-            assert!(mem < cap, "n:{} footp:{}", n, mem)
+            debug_assert!(mem < cap, "n:{} footp:{}", n, mem)
         }
         n => {
             let k = k as f64;
             let ratio = ((((mem as f64) / (n as f64)) - k) / k) * 100.0;
-            assert!(
+            debug_assert!(
                 (ratio < 120.0) || (n <= 1000),
                 "n:{} footp:{} ratio:{}",
                 n,
