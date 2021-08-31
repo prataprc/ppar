@@ -1,3 +1,12 @@
+0.3.1
+=====
+
+* replace `assert!()` calls with `debug_assert!()`
+* improvise check.sh and perf.sh
+* reduce time taken to run unit test cases.
+* clippy fixes
+* rustdoc
+
 0.3.0
 =====
 

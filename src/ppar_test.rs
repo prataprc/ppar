@@ -6,7 +6,7 @@ use super::*;
 fn test_new() {
     let arr: Vector<u64> = Vector::default();
     assert!(arr.is_empty());
-    println!("is thread-safe {}", arr.is_thread_safe());
+    println!("test_new is thread-safe {}", arr.is_thread_safe());
 }
 
 #[test]
@@ -200,7 +200,7 @@ fn test_from_slice() {
 #[test]
 fn test_to_vec() {
     let seed: u128 = random();
-    println!("test_from_slice seed:{}", seed);
+    println!("test_to_vec seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
@@ -224,7 +224,7 @@ fn test_iter() {
 #[test]
 fn test_into_iter() {
     let seed: u128 = random();
-    println!("test_iter seed:{}", seed);
+    println!("test_into_iter seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
