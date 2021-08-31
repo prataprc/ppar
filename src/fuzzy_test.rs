@@ -108,7 +108,7 @@ macro_rules! initialize {
 initialize!(do_initial_arc, arc);
 initialize!(do_initial_rc, rc);
 
-#[derive(Arbitrary)]
+#[derive(Arbitrary, Clone, Debug)]
 enum Op<T>
 where
     T: Clone,
@@ -155,6 +155,7 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
 struct Index(usize);
 
 impl Arbitrary for Index {
@@ -181,67 +182,91 @@ macro_rules! fuzzy_ops {
             let mut rng = SmallRng::from_seed(seed.to_le_bytes());
             let is_rc = Vector::<T>::is_rc_type();
 
+            let (
+                mut n_to_from_vec,
+                mut n_clone,
+                mut n_footprint,
+                mut n_into_iter,
+                mut n_iter,
+            ) = (0, 0, 0, 0, 0);
+
             let mut counts: BTreeMap<&'static str, usize> = BTreeMap::new();
-            for _ in 0..n_ops {
+            for _i in 0..n_ops {
                 let op: Op<T> = {
                     let bytes: [u8; 32] = rng.gen();
                     let mut uns = Unstructured::new(&bytes);
                     uns.arbitrary().unwrap()
                 };
 
-                op.count(&mut counts);
-
-                match op {
-                    Op::ToFromVec(leaf_size) => {
+                let ok = match op.clone() {
+                    Op::ToFromVec(leaf_size) if n_to_from_vec < 5 => {
                         let a = crate::$ref::Vector::from_slice(&vec, Some(leaf_size));
                         let a: Vec<T> = a.into();
                         assert_eq!(a, vec);
+                        n_to_from_vec += 1;
+                        true
                     }
-                    Op::Clone => {
+                    Op::ToFromVec(_) => false,
+                    Op::Clone if n_clone < 5 => {
                         let a = arr.clone();
                         let a: Vec<T> = a.into();
                         assert_eq!(a, vec);
+                        n_clone += 1;
+                        true
                     }
+                    Op::Clone => false,
                     Op::Len => {
                         assert_eq!(arr.len(), vec.len());
+                        true
                     }
-                    Op::Footprint => {
+                    Op::Footprint if n_footprint < 5 => {
                         arr.footprint();
+                        n_footprint += 1;
+                        true
                     }
+                    Op::Footprint => false,
                     Op::Insert(Index(off), val) if off <= arr.len() => {
                         arr.insert(off, val.clone()).unwrap();
                         vec.insert(off, val);
+                        true
                     }
                     Op::Insert(Index(off), val) => {
                         assert!(arr.insert(off, val.clone()).is_err());
+                        true
                     }
                     Op::InsertMut(Index(off), val)
                         if n_threads == 1 && off <= arr.len() =>
                     {
                         arr.insert_mut(off, val.clone()).unwrap();
                         vec.insert(off, val);
+                        true
                     }
                     Op::InsertMut(Index(off), val) if n_threads == 1 => {
-                        assert!(arr.insert_mut(off, val.clone()).is_err())
+                        assert!(arr.insert_mut(off, val.clone()).is_err());
+                        true
                     }
-                    Op::InsertMut(_, _) => (),
+                    Op::InsertMut(_, _) => false,
                     Op::Remove(Index(off)) if off < arr.len() => {
                         let a = arr.remove(off).unwrap();
                         let b = vec.remove(off);
                         assert_eq!(a, b);
+                        true
                     }
                     Op::Remove(Index(off)) => {
                         assert!(arr.remove(off).is_err());
+                        true
                     }
                     Op::RemoveMut(Index(off)) if n_threads == 1 && off < arr.len() => {
                         let a = arr.remove_mut(off).unwrap();
                         let b = vec.remove(off);
                         assert_eq!(a, b);
+                        true
                     }
                     Op::RemoveMut(Index(off)) if n_threads == 1 => {
-                        assert!(arr.remove_mut(off).is_err())
+                        assert!(arr.remove_mut(off).is_err());
+                        true
                     }
-                    Op::RemoveMut(_) => (),
+                    Op::RemoveMut(_) => false,
                     Op::Update(Index(off), val) if off < arr.len() => {
                         let a = arr.update(off, val.clone()).ok();
                         let b = vec.get(off).cloned().map(|x| {
@@ -249,9 +274,11 @@ macro_rules! fuzzy_ops {
                             x
                         });
                         assert_eq!(a, b);
+                        true
                     }
                     Op::Update(Index(off), val) => {
                         assert!(arr.update(off, val).is_err());
+                        true
                     }
                     Op::UpdateMut(Index(off), val)
                         if n_threads == 1 && off < arr.len() =>
@@ -262,33 +289,49 @@ macro_rules! fuzzy_ops {
                             x
                         });
                         assert_eq!(a, b);
+                        true
                     }
                     Op::UpdateMut(Index(off), val) if n_threads == 1 => {
-                        assert!(arr.update(off, val).is_err())
+                        assert!(arr.update(off, val).is_err());
+                        true
                     }
-                    Op::UpdateMut(_, _) => (),
+                    Op::UpdateMut(_, _) => false,
                     Op::Get(Index(off)) => {
                         assert_eq!(arr.get(off).ok(), vec.get(off));
+                        true
                     }
-                    Op::IntoIter => {
+                    Op::IntoIter if n_into_iter < 5 => {
                         let ii = arr.clone().into_iter();
                         let ij = vec.clone().into_iter();
                         let a: Vec<T> = ii.collect();
                         let b: Vec<T> = ij.collect();
                         assert_eq!(a, b);
+                        n_into_iter += 1;
+                        true
                     }
-                    Op::Iter => {
+                    Op::Iter if n_iter < 5 => {
                         let a: Vec<T> = arr.iter().map(|x| x.clone()).collect();
                         let b: Vec<T> = vec.iter().map(|x| x.clone()).collect();
                         assert_eq!(a, b);
+                        n_iter += 1;
+                        true
                     }
+                    Op::IntoIter | Op::Iter => false,
                     Op::SplitOff(Index(off)) if off < arr.len() => {
                         let a = arr.split_off(off).unwrap();
                         arr.append(a);
                         let mut b = vec.split_off(off);
                         vec.append(&mut b);
+                        true
                     }
-                    Op::SplitOff(Index(off)) => assert!(arr.split_off(off).is_err()),
+                    Op::SplitOff(Index(off)) => {
+                        assert!(arr.split_off(off).is_err());
+                        true
+                    }
+                };
+
+                if ok {
+                    op.count(&mut counts);
                 }
             }
 
