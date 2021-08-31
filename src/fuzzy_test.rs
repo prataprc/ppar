@@ -4,25 +4,35 @@ use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
 use std::collections::BTreeMap;
 use std::{fmt, thread};
 
+use super::*;
+
 #[test]
 fn test_fuzzy() {
-    let seed: u128 = random();
-    // let seed: u128 = 148687161270367758201020080252240195663;
+    let seed: u128 = [
+        220624618529097964892132056720795742212,
+        148687161270367758201020080252240195663,
+        random(),
+    ][random::<usize>() % 3];
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let is_rc = Vector::<u64>::is_rc_type();
 
+    let n_threads: usize = match is_rc {
+        false => [2, 4, 8, 16, 32, 64][rng.gen::<usize>() % 6],
+        true => 1,
+    };
     let n_loads: usize = [0, 1, 1000, 1_000_000, 10_000_000][rng.gen::<usize>() % 5];
-    let n_ops: usize = [0, 1, 1000, 1_000_000][rng.gen::<usize>() % 4];
-    let n_threads: usize = [1, 2, 4, 8, 16, 256, 1024][rng.gen::<usize>() % 7];
+    let n_ops: usize = [0, 1, 1_000, 10_000, 100_000, 1_000_000][rng.gen::<usize>() % 6];
 
     println!(
-        "test_fuzzy seed:{} n_loads:{} n_ops:{} n_threads:{}",
-        seed, n_loads, n_ops, n_threads
+        "test_fuzzy(rc:{}) seed:{} n_loads:{} n_ops:{} n_threads:{}",
+        is_rc, seed, n_loads, n_ops, n_threads
     );
 
     let rets: Vec<(Vec<*const u8>, usize)> = match n_threads {
         0 => unreachable!(),
         1 => {
             let (arr, vec) = do_initial_rc::<u64>(seed, n_loads);
+
             vec![do_incremental_rc(0, arr, vec, seed, n_ops, n_threads)
                 .fetch_multiversions()]
         }
@@ -51,13 +61,14 @@ fn test_fuzzy() {
             map.insert(ptr, n + 1);
         }
         println!(
-            "test_fuzzy thread-{} number of multi-reference nodes {} / {}",
+            "test_fuzzy(rc:{}) thread-{} number of multi-reference nodes {} / {}",
+            is_rc,
             id,
             ptrs.len(),
             total_nodes
         );
     }
-    println!("test_fuzzy total shared nodes {}", map.len());
+    println!("test_fuzzy(rc:{}) total shared nodes {}", is_rc, map.len());
 }
 
 macro_rules! initialize {
@@ -71,35 +82,23 @@ macro_rules! initialize {
             let bytes = rng.gen::<[u8; 32]>();
             let mut uns = Unstructured::new(&bytes);
 
-            let mut arr = crate::$ref::Vector::<T>::default();
+            let is_rc = Vector::<T>::is_rc_type();
 
             let k = std::mem::size_of::<T>();
             let leaf_cap = *uns.choose(&[k * 10, k * 100, k * 1000, k * 10000]).unwrap();
-            println!("test_fuzzy leaf_cap: {}", leaf_cap);
-            arr.set_leaf_size(leaf_cap);
-            arr.set_auto_rebalance(true);
 
-            let prepend_load = n_loads / 2;
-            let append_load = n_loads - prepend_load;
+            println!("test_fuzzy(rc:{}) leaf_cap:{}", is_rc, leaf_cap);
 
-            let mut vec: Vec<T> = arr.clone().into();
-            for _i in 0..prepend_load {
-                let val: T = rng.gen();
-                arr.insert(0, val.clone()).unwrap();
-                vec.push(val);
-            }
-            vec.reverse();
-
-            for _i in 0..append_load {
-                let val: T = rng.gen();
-                arr.insert(arr.len(), val.clone()).unwrap();
-                vec.push(val);
+            let mut vec: Vec<T> = Vec::default();
+            for _i in 0..n_loads {
+                vec.push(rng.gen());
             }
 
+            let mut arr = crate::$ref::Vector::from_slice(&vec, Some(leaf_cap));
             arr.set_auto_rebalance(uns.arbitrary().unwrap());
 
             crate::$ref::validate(&arr, &vec);
-            println!("test_fuzzy load {} items", arr.len());
+            println!("test_fuzzy(rc:{}) load {} items", is_rc, arr.len());
 
             (arr, vec)
         }
@@ -180,6 +179,7 @@ macro_rules! fuzzy_ops {
         {
             let seed = seed + (((id as u128) + 100) * 123);
             let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+            let is_rc = Vector::<T>::is_rc_type();
 
             let mut counts: BTreeMap<&'static str, usize> = BTreeMap::new();
             for _ in 0..n_ops {
@@ -295,14 +295,15 @@ macro_rules! fuzzy_ops {
             crate::$ref::validate(&arr, &vec);
 
             println!(
-                "test_fuzzy validated thread-{} using {} ops with {} items",
+                "test_fuzzy(rc:{}) validated thread-{} using {} ops with {} items",
+                is_rc,
                 id,
                 n_ops,
                 arr.len()
             );
 
             for (k, v) in counts.iter() {
-                println!("test_fuzzy {:14}: {}", k, v)
+                println!("test_fuzzy(rc:{}) {:14}: {}", is_rc, k, v)
             }
 
             arr

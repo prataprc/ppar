@@ -11,9 +11,9 @@ fn test_new() {
 
 #[test]
 fn test_crud() {
-    let seed: u128 = random();
-    // let seed: u128 = 148687161270367758201020080252240195663;
-    println!("test_crud seed {}", seed);
+    let seed: u128 = [148687161270367758201020080252240195663, random(), random()]
+        [random::<usize>() % 3];
+    println!("test_crud seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let ops = [0, 1, 2, 3, 10, 100, 1000, 10_000, 1_000_000];
@@ -94,9 +94,9 @@ fn test_crud() {
 
 #[test]
 fn test_split_off() {
-    let seed: u128 = random();
-    // let seed: u128 = 252658238112610282069224390866000906287;
-    println!("test_split_off seed {}", seed);
+    let seed: u128 = [252658238112610282069224390866000906287, random(), random()]
+        [random::<usize>() % 3];
+    println!("test_split_off seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let ns = [10_000, 1_000_000, 10_000_000];
@@ -117,9 +117,9 @@ fn test_split_off() {
 
 #[test]
 fn test_append() {
-    let seed: u128 = random();
-    // let seed: u128 = 252658238112610282069224390866000906287;
-    println!("test_append seed {}", seed);
+    let seed: u128 = [252658238112610282069224390866000906287, random(), random()]
+        [random::<usize>() % 3];
+    println!("test_append seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     for i in 1..100 {
@@ -138,9 +138,10 @@ fn test_append() {
 
 #[test]
 fn test_prepend() {
-    let seed: u128 = random();
+    let seed: u128 = [252658238112610282069224390866000906287, random(), random()]
+        [random::<usize>() % 3];
     // let seed: u128 = 252658238112610282069224390866000906287;
-    println!("test_prepend seed {}", seed);
+    println!("test_prepend seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let ops = [10_000, 1_000_000];
@@ -163,7 +164,7 @@ fn test_prepend() {
 #[test]
 fn test_delete_skew() {
     let seed: u128 = random();
-    println!("test_delete_skew seed {}", seed);
+    println!("test_delete_skew seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let mut arr: Vector<u64> = Vector::default();
@@ -188,7 +189,7 @@ fn test_delete_skew() {
 #[test]
 fn test_from_slice() {
     let seed: u128 = random();
-    println!("test_from_slice seed {}", seed);
+    println!("test_from_slice seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
@@ -199,7 +200,7 @@ fn test_from_slice() {
 #[test]
 fn test_to_vec() {
     let seed: u128 = random();
-    println!("test_from_slice seed {}", seed);
+    println!("test_from_slice seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
@@ -210,7 +211,7 @@ fn test_to_vec() {
 #[test]
 fn test_iter() {
     let seed: u128 = random();
-    println!("test_iter seed {}", seed);
+    println!("test_iter seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
@@ -223,7 +224,7 @@ fn test_iter() {
 #[test]
 fn test_into_iter() {
     let seed: u128 = random();
-    println!("test_iter seed {}", seed);
+    println!("test_iter seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
@@ -236,7 +237,7 @@ fn test_into_iter() {
 #[test]
 fn test_rebalance() {
     let seed: u128 = random();
-    println!("test_rebalance seed {}", seed);
+    println!("test_rebalance seed:{}", seed);
     let mut rng = SmallRng::from_seed(seed.to_le_bytes());
 
     for _ in 0..10 {

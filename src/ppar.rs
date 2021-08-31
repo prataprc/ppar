@@ -55,9 +55,11 @@ where
         u: &mut arbitrary::unstructured::Unstructured,
     ) -> arbitrary::Result<Self> {
         let k = std::mem::size_of::<T>();
+
         let leaf_cap = *u.choose(&[k, k * 2, k * 100, k * 1000, k * 10000])?;
         let auto_reb = *u.choose(&[true, false])?; // auto_rebalance
         let arr: Vec<T> = u.arbitrary()?;
+
         let mut arr = Vector::from_slice(&arr, Some(leaf_cap));
         arr.set_auto_rebalance(auto_reb);
 
@@ -1092,7 +1094,7 @@ pub fn validate_mem_ratio(k: usize, mem: usize, n: usize) {
             let k = k as f64;
             let ratio = ((((mem as f64) / (n as f64)) - k) / k) * 100.0;
             assert!(
-                (ratio < 120.0) || (n < 100),
+                (ratio < 120.0) || (n <= 1000),
                 "n:{} footp:{} ratio:{}",
                 n,
                 mem,

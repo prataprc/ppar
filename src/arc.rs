@@ -6,8 +6,9 @@ use std::sync::Arc as Ref;
 mod ppar;
 
 /// Persistent array, thread-safe version.
-pub use self::ppar::Vector;
-pub use self::ppar::*;
+pub use self::ppar::{IntoIter, Iter, Vector};
+#[cfg(test)]
+pub use ppar::validate;
 
 impl<T> Vector<T>
 where
@@ -16,5 +17,10 @@ where
     /// Return whether this instance is thread-safe.
     pub fn is_thread_safe(&self) -> bool {
         true
+    }
+
+    #[cfg(test)]
+    pub fn is_rc_type() -> bool {
+        false
     }
 }
