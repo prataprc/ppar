@@ -107,6 +107,7 @@ where
         Array::Im(im::Vector::<T>::new())
     }
 
+    #[allow(clippy::needless_collect)]
     fn load(&mut self, n: usize, rng: &mut SmallRng) -> (time::Duration, usize) {
         let offs: Vec<usize> = (1..=n).map(|i| rng.gen::<usize>() % i).collect();
         let vals: Vec<T> = (0..n).map(|_| rng.gen::<T>()).collect();
@@ -225,6 +226,7 @@ where
         acc.len()
     }
 
+    #[allow(clippy::needless_collect)]
     fn op_insert(&mut self, n_ops: usize, rng: &mut SmallRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
@@ -244,6 +246,7 @@ where
         self.stats.insert("insert", (elapsed, n_ops));
     }
 
+    #[allow(clippy::needless_collect)]
     fn op_insert_mut(&mut self, n_ops: usize, rng: &mut SmallRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
@@ -263,6 +266,7 @@ where
         self.stats.insert("insert_mut", (elapsed, n_ops));
     }
 
+    #[allow(clippy::needless_collect)]
     fn op_remove(&mut self, n_ops: usize, rng: &mut SmallRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
@@ -294,6 +298,7 @@ where
         self.stats.insert("remove", (elapsed, n_ops));
     }
 
+    #[allow(clippy::needless_collect)]
     fn op_remove_mut(&mut self, n_ops: usize, rng: &mut SmallRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
@@ -333,6 +338,7 @@ where
         self.stats.insert("remove_mut", (elapsed, n_ops));
     }
 
+    #[allow(clippy::needless_collect)]
     fn op_update(&mut self, n_ops: usize, rng: &mut SmallRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
@@ -356,13 +362,14 @@ where
         self.stats.insert("update", (elapsed, n_ops));
     }
 
+    #[allow(clippy::needless_collect)]
     fn op_update_mut(&mut self, n_ops: usize, rng: &mut SmallRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
-        let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
+        let vals = (0..n_ops).map(|_| rng.gen::<T>());
 
         let start = time::Instant::now();
-        for (off, val) in offs.into_iter().zip(vals.into_iter()) {
+        for (off, val) in offs.into_iter().zip(vals) {
             match &mut self.val {
                 Array::Vector(arr) => {
                     arr.update_mut(off, val).unwrap();
