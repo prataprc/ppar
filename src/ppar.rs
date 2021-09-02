@@ -313,8 +313,8 @@ where
     /// After the call, the original vector will be left containing the
     /// elements [0, at) with its previous capacity unchanged.
     ///
-    /// Optionally, application can call [Self::rebalance] on `self` and
-    /// the returned vector to make the vectors fully balanced.
+    /// Optionally, application can call [Self::rebalance] on `self`, and
+    /// the returned vector, to make the vectors fully balanced.
     pub fn split_off(&mut self, off: usize) -> Result<Vector<T>>
     where
         T: Clone,
