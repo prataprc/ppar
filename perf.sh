@@ -9,7 +9,7 @@ PERF=$HOME/.cargo/target/release/perf
 
 # regular benchmark
 date; time cargo +nightly bench -- --nocapture || exit $?
-# date; time cargo +stable bench -- --nocapture || exit $?
+# TODO: date; time cargo +stable bench -- --nocapture || exit $?
 
 LOADS=100000
 OPS=10000

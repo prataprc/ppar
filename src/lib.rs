@@ -19,7 +19,7 @@
 //! Ownership and Cloning
 //! =====================
 //!
-//! Cloning `arc::Vector` and `rc::Vector` is cheap, it creates a shared ownership
+//! Cloning [arc::Vector] and [rc::Vector] is cheap, it creates a shared ownership
 //! of the underlying tree. This is great for applications requiring
 //! shared-ownership, but at the cost of copy-on-write for every mutation in
 //! the Vector, like insert, remove, delete. For applications requiring only
@@ -31,19 +31,27 @@
 //! Thread Safety
 //! =============
 //!
-//! `arc::Vector<T>` is thread safe through `Arc`. To trade-off
-//! thread-safety for performance use `rc::Vector` type, which is same as
-//! `arc::Vector` type except for using `std::rc::Rc` instead of
-//! `std::sync::Arc` for shared ownership. That is, `Send` and `Sync`
-//! traits are not available for `rc::Vector` type while it is available
-//! for `arc::Vector` type.
+//! [arc::Vector<T>] is thread safe through [Arc]. To trade-off
+//! thread-safety for performance use [rc::Vector] type, which is same as
+//! [arc::Vector] type except for using [Rc] instead of [Arc] for shared ownership.
+//! That is, [Send] and [Sync] traits are not available for [rc::Vector] type while
+//! it is available for [arc::Vector] type.
 //!
-//! **Alternate libraries**:
+//! Features
+//! ========
+//!
+//! **`arbitrary`** feature must be enabled, for [arc::Vector] and [rc::Vector]
+//! types to implement the `arbitrary::Arbitrary` trait.
+//!
+//! Alternate libraries
+//! ===================
 //!
 //! * _[im](https://github.com/bodil/im-rs)_
 //! * _[rpds](https://github.com/orium/rpds)_
 
 use std::{error, fmt, result};
+#[allow(unused_imports)]
+use std::{rc::Rc, sync::Arc};
 
 // Short form to compose Error values.
 //
