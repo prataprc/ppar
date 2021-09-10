@@ -29,7 +29,7 @@ bench:
 flamegraph:
 	cargo flamegraph --features=perf --bin=perf -- --load 100000 --ops 10000
 
-prepare:
+prepare: build test bench
 	check.sh check.out
 	perf.sh perf.out
 
