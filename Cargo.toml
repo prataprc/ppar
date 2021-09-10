@@ -17,6 +17,9 @@ debug = true
 [profile.bench]
 debug = true
 
+[lib]
+name = "ppar"
+
 [[bin]]
 name = "perf"
 required-features = ["perf"]
