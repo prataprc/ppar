@@ -887,7 +887,7 @@ where
     fn build_iter_stack<'a, 'b>(node: &'a Node<T>, iter: &'b mut Iter<'a, T>) {
         match node {
             Node::M { left, right, .. } => {
-                iter.stack.push(&right);
+                iter.stack.push(right);
                 Self::build_iter_stack(left, iter);
             }
             node @ Node::Z { .. } => {
