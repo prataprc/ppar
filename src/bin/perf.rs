@@ -1,4 +1,4 @@
-use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
+use rand::{prelude::random, rngs::StdRng, Rng, SeedableRng};
 use structopt::StructOpt;
 
 use std::{collections::BTreeMap, time};
@@ -14,7 +14,7 @@ macro_rules! pp {
 #[derive(Clone, StructOpt)]
 pub struct Opt {
     #[structopt(long = "seed")]
-    seed: Option<u128>,
+    seed: Option<u64>,
 
     #[structopt(long = "loads", default_value = "1000000")] // default 1M
     loads: usize,
@@ -38,8 +38,7 @@ fn main() {
     let opts = Opt::from_args();
     let mut rng = {
         let seed = opts.seed.unwrap_or_else(random);
-        // let seed: u128 = 89704735013013664095413923566273445973;
-        SmallRng::from_seed(seed.to_le_bytes())
+        StdRng::seed_from_u64(seed)
     };
 
     let arrs = if opts.im {
@@ -108,7 +107,7 @@ where
     }
 
     #[allow(clippy::needless_collect)]
-    fn load(&mut self, n: usize, rng: &mut SmallRng) -> (time::Duration, usize) {
+    fn load(&mut self, n: usize, rng: &mut StdRng) -> (time::Duration, usize) {
         let offs: Vec<usize> = (1..=n).map(|i| rng.gen::<usize>() % i).collect();
         let vals: Vec<T> = (0..n).map(|_| rng.gen::<T>()).collect();
 
@@ -181,12 +180,12 @@ where
         }
     }
 
-    fn load(&mut self, rng: &mut SmallRng) {
+    fn load(&mut self, rng: &mut StdRng) {
         self.stats
             .insert("load", self.val.load(self.opts.loads, rng));
     }
 
-    fn run(&mut self, rng: &mut SmallRng) {
+    fn run(&mut self, rng: &mut StdRng) {
         self.op_clone(self.opts.ops);
         self.op_insert(self.opts.ops, rng);
         self.op_insert_mut(self.opts.ops, rng);
@@ -227,7 +226,7 @@ where
     }
 
     #[allow(clippy::needless_collect)]
-    fn op_insert(&mut self, n_ops: usize, rng: &mut SmallRng) {
+    fn op_insert(&mut self, n_ops: usize, rng: &mut StdRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
         let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
@@ -247,7 +246,7 @@ where
     }
 
     #[allow(clippy::needless_collect)]
-    fn op_insert_mut(&mut self, n_ops: usize, rng: &mut SmallRng) {
+    fn op_insert_mut(&mut self, n_ops: usize, rng: &mut StdRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
         let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
@@ -267,7 +266,7 @@ where
     }
 
     #[allow(clippy::needless_collect)]
-    fn op_remove(&mut self, n_ops: usize, rng: &mut SmallRng) {
+    fn op_remove(&mut self, n_ops: usize, rng: &mut StdRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
         let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
@@ -299,7 +298,7 @@ where
     }
 
     #[allow(clippy::needless_collect)]
-    fn op_remove_mut(&mut self, n_ops: usize, rng: &mut SmallRng) {
+    fn op_remove_mut(&mut self, n_ops: usize, rng: &mut StdRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
         let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
@@ -339,7 +338,7 @@ where
     }
 
     #[allow(clippy::needless_collect)]
-    fn op_update(&mut self, n_ops: usize, rng: &mut SmallRng) {
+    fn op_update(&mut self, n_ops: usize, rng: &mut StdRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
         let vals: Vec<T> = (0..n_ops).map(|_| rng.gen::<T>()).collect();
@@ -363,7 +362,7 @@ where
     }
 
     #[allow(clippy::needless_collect)]
-    fn op_update_mut(&mut self, n_ops: usize, rng: &mut SmallRng) {
+    fn op_update_mut(&mut self, n_ops: usize, rng: &mut StdRng) {
         let len = self.len();
         let offs: Vec<usize> = (0..n_ops).map(|_| rng.gen::<usize>() % len).collect();
         let vals = (0..n_ops).map(|_| rng.gen::<T>());
@@ -386,7 +385,7 @@ where
         self.stats.insert("update_mut", (elapsed, n_ops));
     }
 
-    fn op_get(&mut self, n_ops: usize, rng: &mut SmallRng) {
+    fn op_get(&mut self, n_ops: usize, rng: &mut StdRng) {
         let len = self.len();
         let offs = (0..n_ops).map(|_| rng.gen::<usize>() % len);
 
@@ -422,7 +421,7 @@ where
         count
     }
 
-    fn op_split_append(&mut self, n_ops: usize, rng: &mut SmallRng) {
+    fn op_split_append(&mut self, n_ops: usize, rng: &mut StdRng) {
         let len = self.len();
         let offs = (0..n_ops).map(|_| rng.gen::<usize>() % len);
 

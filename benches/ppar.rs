@@ -1,7 +1,7 @@
 #![feature(test)]
 extern crate test;
 
-use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
+use rand::{prelude::random, rngs::StdRng, Rng, SeedableRng};
 
 use test::Bencher;
 
@@ -9,9 +9,9 @@ use ppar::arc::Vector;
 
 #[bench]
 fn bench_prepend(b: &mut Bencher) {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("bench_prepend seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let mut arr: Vector<u64> = Vector::default();
     b.iter(|| {
@@ -25,9 +25,9 @@ fn bench_prepend(b: &mut Bencher) {
 
 #[bench]
 fn bench_append(b: &mut Bencher) {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("bench_append seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let mut arr: Vector<u64> = Vector::default();
     b.iter(|| {
@@ -41,9 +41,9 @@ fn bench_append(b: &mut Bencher) {
 
 #[bench]
 fn bench_insert_rand(b: &mut Bencher) {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("bench_insert_rand seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let mut arr: Vector<u64> = Vector::default();
     b.iter(|| {
@@ -59,9 +59,9 @@ fn bench_insert_rand(b: &mut Bencher) {
 #[bench]
 #[allow(non_snake_case)]
 fn bench_get_100K(b: &mut Bencher) {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("bench_get_100K seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let mut arr: Vector<u64> = Vector::default();
     for _ in 0..100_000 {
@@ -81,9 +81,9 @@ fn bench_get_100K(b: &mut Bencher) {
 #[bench]
 #[allow(non_snake_case)]
 fn bench_update_100K(b: &mut Bencher) {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("bench_update_100K seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let mut arr: Vector<u64> = Vector::default();
     for _ in 0..100_000 {
@@ -104,10 +104,11 @@ fn bench_update_100K(b: &mut Bencher) {
 #[bench]
 #[allow(non_snake_case)]
 fn bench_delete_100K(b: &mut Bencher) {
-    let seed: u128 = random();
+    let seed: u64 = random();
     // let seed: u128 = 165591759058987334402931296907057276118;
     println!("bench_delete_100K seed {}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
+
     let mut arr: Vector<u64> = Vector::default();
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);
@@ -127,10 +128,10 @@ fn bench_delete_100K(b: &mut Bencher) {
 
 #[bench]
 fn bench_clone(b: &mut Bencher) {
-    let seed: u128 = random();
+    let seed: u64 = random();
     // let seed: u128 = 165591759058987334402931296907057276118;
-    println!("bench_clone seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
+
     let mut arr: Vector<u64> = Vector::default();
     for _ in 0..100_000 {
         let off = rng.gen::<usize>() % (arr.len() + 1);

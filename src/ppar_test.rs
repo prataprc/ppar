@@ -1,4 +1,4 @@
-use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
+use rand::{prelude::random, rngs::StdRng, Rng, SeedableRng};
 
 use super::*;
 
@@ -11,10 +11,9 @@ fn test_new() {
 
 #[test]
 fn test_crud() {
-    let seed: u128 = [148687161270367758201020080252240195663, random(), random()]
-        [random::<usize>() % 3];
+    let seed: u64 = random();
     println!("test_crud seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let ops = [0, 1, 2, 3, 10, 100, 1000, 10_000, 1_000_000];
     for n in ops.iter() {
@@ -94,10 +93,9 @@ fn test_crud() {
 
 #[test]
 fn test_split_off() {
-    let seed: u128 = [252658238112610282069224390866000906287, random(), random()]
-        [random::<usize>() % 3];
+    let seed: u64 = random();
     println!("test_split_off seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let ns = [10_000, 1_000_000, 10_000_000];
     for n in ns.iter() {
@@ -117,10 +115,9 @@ fn test_split_off() {
 
 #[test]
 fn test_append() {
-    let seed: u128 = [252658238112610282069224390866000906287, random(), random()]
-        [random::<usize>() % 3];
+    let seed: u64 = random();
     println!("test_append seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     for i in 1..100 {
         let mut a: Vec<u64> = (0..rng.gen::<u64>() % (i * 1000)).collect();
@@ -138,11 +135,9 @@ fn test_append() {
 
 #[test]
 fn test_prepend() {
-    let seed: u128 = [252658238112610282069224390866000906287, random(), random()]
-        [random::<usize>() % 3];
-    // let seed: u128 = 252658238112610282069224390866000906287;
+    let seed: u64 = random();
     println!("test_prepend seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let ops = [10_000, 1_000_000];
     for n in ops.iter() {
@@ -163,9 +158,9 @@ fn test_prepend() {
 
 #[test]
 fn test_delete_skew() {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("test_delete_skew seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let mut arr: Vector<u64> = Vector::default();
     let mut refv = vec![];
@@ -188,9 +183,9 @@ fn test_delete_skew() {
 
 #[test]
 fn test_from_slice() {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("test_from_slice seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
     let arr = Vector::from_slice(&vals, None);
@@ -199,9 +194,9 @@ fn test_from_slice() {
 
 #[test]
 fn test_to_vec() {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("test_to_vec seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
     let vect: Vec<u64> = Vector::from_slice(&vals, None).into();
@@ -210,9 +205,9 @@ fn test_to_vec() {
 
 #[test]
 fn test_iter() {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("test_iter seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
     let arr = Vector::from_slice(&vals, None);
@@ -223,9 +218,9 @@ fn test_iter() {
 
 #[test]
 fn test_into_iter() {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("test_into_iter seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let vals: Vec<u64> = (0..1_000_000).map(|_| rng.gen()).collect();
     let arr = Vector::from_slice(&vals, None);
@@ -236,9 +231,9 @@ fn test_into_iter() {
 
 #[test]
 fn test_rebalance() {
-    let seed: u128 = random();
+    let seed: u64 = random();
     println!("test_rebalance seed:{}", seed);
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     for _ in 0..10 {
         let mut arr = Vector::default();

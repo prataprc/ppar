@@ -1,5 +1,5 @@
 use arbitrary::{self, unstructured::Unstructured, Arbitrary};
-use rand::{prelude::random, rngs::SmallRng, Rng, SeedableRng};
+use rand::{prelude::random, rngs::StdRng, Rng, SeedableRng};
 
 use std::collections::BTreeMap;
 use std::{fmt, thread};
@@ -8,12 +8,9 @@ use super::*;
 
 #[test]
 fn test_fuzzy() {
-    let seed: u128 = [
-        220624618529097964892132056720795742212,
-        148687161270367758201020080252240195663,
-        random(),
-    ][random::<usize>() % 3];
-    let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+    let seed: u64 = random();
+    let mut rng = StdRng::seed_from_u64(seed);
+
     let is_rc = Vector::<u64>::is_rc_type();
 
     let n_threads: usize = match is_rc {
@@ -73,12 +70,13 @@ fn test_fuzzy() {
 
 macro_rules! initialize {
     ($func:ident, $ref:ident) => {
-        fn $func<T>(seed: u128, n_loads: usize) -> (crate::$ref::Vector<T>, Vec<T>)
+        fn $func<T>(seed: u64, n_loads: usize) -> (crate::$ref::Vector<T>, Vec<T>)
         where
             T: fmt::Debug + Clone + Eq + PartialEq + Arbitrary,
             rand::distributions::Standard: rand::distributions::Distribution<T>,
         {
-            let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+            let mut rng = StdRng::seed_from_u64(seed);
+
             let bytes = rng.gen::<[u8; 32]>();
             let mut uns = Unstructured::new(&bytes);
 
@@ -171,15 +169,16 @@ macro_rules! fuzzy_ops {
             id: usize,
             mut arr: crate::$ref::Vector<T>,
             mut vec: Vec<T>,
-            seed: u128,
+            seed: u64,
             n_ops: usize,
             n_threads: usize,
         ) -> crate::$ref::Vector<T>
         where
             T: fmt::Debug + Clone + Eq + PartialEq + Arbitrary,
         {
-            let seed = seed + (((id as u128) + 100) * 123);
-            let mut rng = SmallRng::from_seed(seed.to_le_bytes());
+            let seed = seed + (((id as u64) + 100) * 123);
+            let mut rng = StdRng::seed_from_u64(seed);
+
             let is_rc = Vector::<T>::is_rc_type();
 
             let (
