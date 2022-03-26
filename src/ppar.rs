@@ -50,7 +50,7 @@ where
     T: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
-        self.len() == other.len() && self.iter().eq(other.iter())
+        self.iter().eq(other.iter())
     }
 }
 
