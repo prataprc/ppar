@@ -45,6 +45,17 @@ where
     }
 }
 
+impl<T> PartialEq for Vector<T>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.iter().eq(other.iter())
+    }
+}
+
+impl<T> Eq for Vector<T> where T: Eq {}
+
 #[cfg(any(feature = "arbitrary", test))]
 impl<T> arbitrary::Arbitrary for Vector<T>
 where

@@ -242,7 +242,11 @@ fn test_rebalance() {
 
         for _i in 0..10_000 {
             let packed: bool = rng.gen();
-            arr = arr.rebalance(packed).unwrap();
+            let rebalanced = arr.rebalance(packed).unwrap();
+
+            assert_eq!(rebalanced, arr);
+
+            arr = rebalanced;
 
             let val = rng.gen::<u64>();
             refv.push(val);
@@ -252,4 +256,42 @@ fn test_rebalance() {
         refv.reverse();
         validate(&arr, &refv);
     }
+}
+
+#[test]
+fn test_equality_of_insert_from_back_and_insert_from_front() {
+    let seed: u64 = random();
+    println!(
+        "test_equality_of_insert_from_back_and_insert_from_front seed:{}",
+        seed
+    );
+    let mut rng = StdRng::seed_from_u64(seed);
+
+    let vals: Vec<u64> = (0..1_000).map(|_| rng.gen()).collect();
+
+    let mut insert_at_front = Vector::default();
+    for v in vals.iter().rev() {
+        insert_at_front.insert_mut(0, *v).unwrap();
+    }
+
+    let mut insert_at_back = Vector::default();
+    for v in vals.iter() {
+        insert_at_back.insert_mut(insert_at_back.len(), *v).unwrap();
+    }
+
+    assert_eq!(insert_at_front, insert_at_back);
+    assert_eq!(insert_at_front.into_iter().collect::<Vec<u64>>(), vals);
+    assert_eq!(insert_at_back.into_iter().collect::<Vec<u64>>(), vals);
+}
+
+#[test]
+fn test_not_equal_if_different_length_but_same_prefix() {
+    let v1 = Vector::from_slice(&[0, 1, 2], None);
+    let mut v2 = Vector::from_slice(&[0, 1, 2, 3], None);
+
+    assert_ne!(v1, v2);
+
+    v2.remove_mut(3).unwrap();
+
+    assert_eq!(v1, v2);
 }
