@@ -4,6 +4,7 @@ use super::*;
 use crate::{Error, Result};
 
 /// Persistent array using rope-data-structure.
+#[derive(Debug)]
 pub struct Vector<T>
 where
     T: Sized,
@@ -403,6 +404,7 @@ where
     }
 }
 
+#[derive(Debug)]
 enum Node<T>
 where
     T: Sized,
