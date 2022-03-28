@@ -4,6 +4,7 @@ use super::*;
 use crate::{Error, Result};
 
 /// Persistent array using rope-data-structure.
+#[derive(Debug)]
 pub struct Vector<T>
 where
     T: Sized,
@@ -43,6 +44,17 @@ where
         arr
     }
 }
+
+impl<T> PartialEq for Vector<T>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+
+impl<T> Eq for Vector<T> where T: Eq {}
 
 #[cfg(any(feature = "arbitrary", test))]
 impl<T> arbitrary::Arbitrary for Vector<T>
@@ -403,6 +415,7 @@ where
     }
 }
 
+#[derive(Debug)]
 enum Node<T>
 where
     T: Sized,
