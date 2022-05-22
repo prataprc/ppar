@@ -19,12 +19,12 @@ build:
 test:
 	# ... test ...
 	cargo +nightly test
-	# TODO: cargo +stable test --no-run
+	cargo +stable test --no-run
 
 bench:
 	# ... test ...
 	cargo +nightly bench
-	# TODO: cargo +stable test --no-run
+	cargo +stable test --no-run
 
 flamegraph:
 	cargo flamegraph --features=perf --bin=perf -- --load 100000 --ops 10000

@@ -16,8 +16,7 @@
 //! * When splitting up of array and/or joining arrays are frequently done.
 //! * Lazy clone of array using copy-on-write.
 //!
-//! Ownership and Cloning
-//! =====================
+//! ### Ownership and Cloning
 //!
 //! Cloning [arc::Vector] and [rc::Vector] is cheap, it creates a shared ownership
 //! of the underlying tree. This is great for applications requiring
@@ -28,8 +27,7 @@
 //! what method to use when, methods that perform in-place mutation are
 //! suffixed with `_mut`.
 //!
-//! Thread Safety
-//! =============
+//! ### Thread Safety
 //!
 //! [arc::Vector<T>] is thread safe through [Arc]. To trade-off
 //! thread-safety for performance use [rc::Vector] type, which is same as
@@ -37,8 +35,7 @@
 //! That is, [Send] and [Sync] traits are not available for [rc::Vector] type while
 //! it is available for [arc::Vector] type.
 //!
-//! Features
-//! ========
+//! ### Features
 //!
 //! **`arbitrary`** feature must be enabled, for [arc::Vector] and [rc::Vector]
 //! types to implement the `arbitrary::Arbitrary` trait.
