@@ -17,7 +17,7 @@ fn test_fuzzy() {
         false => [2, 4, 8, 16, 32, 64][rng.gen::<usize>() % 6],
         true => 1,
     };
-    let n_loads: usize = [0, 1, 1000, 1_000_000, 10_000_000][rng.gen::<usize>() % 5];
+    let n_loads: usize = [0, 1, 1000, 1_000_000][rng.gen::<usize>() % 4];
     let n_ops: usize = [0, 1, 1_000, 10_000, 100_000, 1_000_000][rng.gen::<usize>() % 6];
 
     println!(
